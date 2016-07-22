@@ -1,11 +1,21 @@
-# contrib/pg_audit/Makefile
+#####################################################################
+# Makefile
+#
+# Copyright (c) 2016, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+#
+#####################################################################
+# contrib/pg_audit/Makefile# contrib/pg_audit/Makefile
 
+LFLAGS = -i
+YFLAGS = -d
 MODULE_big = pgaudit
-OBJS = pgaudit.o $(WIN32RES)
+OBJS = pgaudit.o config.o
 
 EXTENSION = pgaudit
 DATA = pgaudit--1.0.sql
 PGFILEDESC = "pgAudit - An audit logging extension for PostgreSQL"
+
+config.o: pgaudit_scan.c
 
 REGRESS = pgaudit
 REGRESS_OPTS = --temp-config=$(top_srcdir)/contrib/pgaudit/pgaudit.conf

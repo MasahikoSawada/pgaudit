@@ -39,6 +39,9 @@
 #include "utils/syscache.h"
 #include "utils/timestamp.h"
 
+#include "config.h"
+#include "pgaudit.h"
+
 PG_MODULE_MAGIC;
 
 void _PG_init(void);
@@ -88,63 +91,11 @@ static int auditLogBitmap = LOG_NONE;
 #define CLASS_ALL       "ALL"
 
 /*
- * GUC variable for pgaudit.log_catalog
+ * GUC variable for pgaudit.config_file
  *
- * Administrators can choose to NOT log queries when all relations used in
- * the query are in pg_catalog.  Interactive sessions (eg: psql) can cause
- * a lot of noise in the logs which might be uninteresting.
+ * Administrators can specify the path to the configuration file.
  */
-bool auditLogCatalog = true;
-
-/*
- * GUC variable for pgaudit.log_level
- *
- * Administrators can choose which log level the audit log is to be logged
- * at.  The default level is LOG, which goes into the server log but does
- * not go to the client.  Set to NOTICE in the regression tests.
- */
-char *auditLogLevelString = NULL;
-int auditLogLevel = LOG;
-
-/*
- * GUC variable for pgaudit.log_parameter
- *
- * Administrators can choose if parameters passed into a statement are
- * included in the audit log.
- */
-bool auditLogParameter = false;
-
-/*
- * GUC variable for pgaudit.log_relation
- *
- * Administrators can choose, in SESSION logging, to log each relation involved
- * in READ/WRITE class queries.  By default, SESSION logs include the query but
- * do not have a log entry for each relation.
- */
-bool auditLogRelation = false;
-
-/*
- * GUC variable for pgaudit.log_statement_once
- *
- * Administrators can choose to have the statement run logged only once instead
- * of on every line.  By default, the statement is repeated on every line of
- * the audit log to facilitate searching, but this can cause the log to be
- * unnecessairly bloated in some environments.
- */
-bool auditLogStatementOnce = false;
-
-/*
- * GUC variable for pgaudit.role
- *
- * Administrators can choose which role to base OBJECT auditing off of.
- * Object-level auditing uses the privileges which are granted to this role to
- * determine if a statement should be logged.
- */
-char *auditRole = NULL;
-
-/*
- * String constants for the audit log fields.
- */
+char *config_file = NULL;
 
 /*
  * Audit type, which is responsbile for the log message
@@ -272,6 +223,41 @@ static int64 substatementTotal = 0;
 static int64 stackTotal = 0;
 
 static bool statementLogged = false;
+
+static void
+print_config(void)
+{
+	int i;
+	ListCell *cell;
+
+	fprintf(stderr, "log_catalog = %d\n", auditLogCatalog);
+	fprintf(stderr, "log_level_string = %s\n", auditLogLevelString);
+	fprintf(stderr, "log_level = %d\n", auditLogLevel);
+	fprintf(stderr, "log_parameter = %d\n", auditLogParameter);
+	fprintf(stderr, "log_relation = %d\n", auditLogRelation);
+	fprintf(stderr, "log_statement_once = %d\n", auditLogStatementOnce);
+	fprintf(stderr, "role = %s\n", auditRole);
+	fprintf(stderr, "logger = %s\n", outputConfig->logger);
+	fprintf(stderr, "facility = %s\n", outputConfig->facility);
+	fprintf(stderr, "priority = %s\n", outputConfig->priority);
+	fprintf(stderr, "ident = %s\n", outputConfig->ident);
+	fprintf(stderr, "option = %s\n", outputConfig->option);
+	fprintf(stderr, "pathlog = %s\n", outputConfig->pathlog);
+	
+	foreach(cell, ruleConfig)
+	{
+		AuditRuleConfig *rconf = lfirst(cell);
+
+		fprintf(stderr, "Format = %s\n", rconf->format);
+
+		for (i = 0; i < AUDIT_NUM_RULES; i++)
+		{
+			Rule *rule = &(rconf->rules[i]);
+			fprintf(stderr, "field = \"%s\" %s \"%s\"\n",
+				 rule->field, rule->eq ? "=" : "!=", rule->value);
+		}
+	}
+}
 
 /*
  * Stack functions
@@ -1739,66 +1725,7 @@ assign_pgaudit_log(const char *newVal, void *extra)
         auditLogBitmap = *(int *) extra;
 }
 
-/*
- * Take a pgaudit.log_level value such as "debug" and check that is is valid.
- * Return the enum value so it does not have to be checked again in the assign
- * function.
- */
-static bool
-check_pgaudit_log_level(char **newVal, void **extra, GucSource source)
-{
-    int *logLevel;
 
-    /* Allocate memory to store the log level */
-    if (!(logLevel = (int *) malloc(sizeof(int))))
-        return false;
-
-    /* Find the log level enum */
-    if (pg_strcasecmp(*newVal, "debug") == 0)
-        *logLevel = DEBUG2;
-    else if (pg_strcasecmp(*newVal, "debug5") == 0)
-        *logLevel = DEBUG5;
-    else if (pg_strcasecmp(*newVal, "debug4") == 0)
-        *logLevel = DEBUG4;
-    else if (pg_strcasecmp(*newVal, "debug3") == 0)
-        *logLevel = DEBUG3;
-    else if (pg_strcasecmp(*newVal, "debug2") == 0)
-        *logLevel = DEBUG2;
-    else if (pg_strcasecmp(*newVal, "debug1") == 0)
-        *logLevel = DEBUG1;
-    else if (pg_strcasecmp(*newVal, "info") == 0)
-        *logLevel = INFO;
-    else if (pg_strcasecmp(*newVal, "notice") == 0)
-        *logLevel = NOTICE;
-    else if (pg_strcasecmp(*newVal, "warning") == 0)
-        *logLevel = WARNING;
-    else if (pg_strcasecmp(*newVal, "log") == 0)
-        *logLevel = LOG;
-
-    /* Error if the log level enum is not found */
-    else
-    {
-        free(logLevel);
-        return false;
-    }
-
-    /* Return the log level enum */
-    *extra = logLevel;
-
-    return true;
-}
-
-/*
- * Set pgaudit_log from extra (ignoring newVal, which has already been
- * converted to an enum above). Note that extra may not be set if the
- * assignment is to be suppressed.
- */
-static void
-assign_pgaudit_log_level(const char *newVal, void *extra)
-{
-    if (extra)
-        auditLogLevel = *(int *) extra;
-}
 
 /*
  * Define GUC variables and install hooks upon module load.
@@ -1835,56 +1762,6 @@ _PG_init(void)
         assign_pgaudit_log,
         NULL);
 
-    /* Define pgaudit.log_catalog */
-    DefineCustomBoolVariable(
-        "pgaudit.log_catalog",
-
-        "Specifies that session logging should be enabled in the case where "
-        "all relations in a statement are in pg_catalog.  Disabling this "
-         "setting will reduce noise in the log from tools like psql and PgAdmin "
-        "that query the catalog heavily.",
-
-        NULL,
-        &auditLogCatalog,
-        true,
-        PGC_SUSET,
-        GUC_NOT_IN_SAMPLE,
-        NULL, NULL, NULL);
-
-    /* Define pgaudit.log_level */
-    DefineCustomStringVariable(
-        "pgaudit.log_level",
-
-        "Specifies the log level that will be used for log entries. This "
-        "setting is used for regression testing and may also be useful to end "
-        "users for testing or other purposes.  It is not intended to be used "
-        "in a production environment as it may leak which statements are being "
-        "logged to the user.",
-
-        NULL,
-        &auditLogLevelString,
-        "log",
-        PGC_SUSET,
-        GUC_LIST_INPUT | GUC_NOT_IN_SAMPLE,
-        check_pgaudit_log_level,
-        assign_pgaudit_log_level,
-        NULL);
-
-    /* Define pgaudit.log_parameter */
-    DefineCustomBoolVariable(
-        "pgaudit.log_parameter",
-
-        "Specifies that audit logging should include the parameters that were "
-        "passed with the statement. When parameters are present they will be "
-        "be included in CSV format after the statement text.",
-
-        NULL,
-        &auditLogParameter,
-        false,
-        PGC_SUSET,
-        GUC_NOT_IN_SAMPLE,
-        NULL, NULL, NULL);
-
     /* Define pgaudit.log_relation */
     DefineCustomBoolVariable(
         "pgaudit.log_relation",
@@ -1901,41 +1778,17 @@ _PG_init(void)
         GUC_NOT_IN_SAMPLE,
         NULL, NULL, NULL);
 
-    /* Define pgaudit.log_statement_once */
-    DefineCustomBoolVariable(
-        "pgaudit.log_statement_once",
-
-        "Specifies whether logging will include the statement text and "
-        "parameters with the first log entry for a statement/substatement "
-        "combination or with every entry.  Disabling this setting will result "
-        "in less verbose logging but may make it more difficult to determine "
-        "the statement that generated a log entry, though the "
-        "statement/substatement pair along with the process id should suffice "
-        "to identify the statement text logged with a previous entry.",
-
-        NULL,
-        &auditLogStatementOnce,
-        false,
-        PGC_SUSET,
-        GUC_NOT_IN_SAMPLE,
-        NULL, NULL, NULL);
-
-        /* Define pgaudit.role */
-        DefineCustomStringVariable(
-            "pgaudit.role",
-
-            "Specifies the master role to use for object audit logging.  Muliple "
-            "audit roles can be defined by granting them to the master role. This "
-            "allows multiple groups to be in charge of different aspects of audit "
-            "logging.",
-
-            NULL,
-            &auditRole,
-            "",
-            PGC_SUSET,
-            GUC_NOT_IN_SAMPLE,
-            NULL, NULL, NULL);
-
+		/* Define pgaudit.confg_file */
+		DefineCustomStringVariable(
+			"pgaudit.config_file",
+			"Specifies the file path name for pgaudit configuration.",
+			NULL,
+			&config_file,
+			"",
+			PGC_POSTMASTER,
+			GUC_NOT_IN_SAMPLE,
+			NULL, NULL, NULL);
+		
     /*
      * Install our hook functions after saving the existing pointers to
      * preserve the chains.
@@ -1951,6 +1804,16 @@ _PG_init(void)
 
     next_object_access_hook = object_access_hook;
     object_access_hook = pgaudit_object_access_hook;
+
+	/* Parse audit configuration */
+	if (config_file == NULL)
+		ereport(ERROR, (errmsg("\"pgaudit.config_file\" must be specify when pgaudit is loaded")));
+
+	outputConfig = (AuditOutputConfig *) malloc(sizeof(AuditOutputConfig));
+	ruleConfig = NULL;
+	
+	processAuditConfigFile(config_file);
+	print_config();
 
     /* Log that the extension has completed initialization */
     ereport(LOG, (errmsg("pgaudit extension initialized")));
