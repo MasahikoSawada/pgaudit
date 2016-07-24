@@ -147,7 +147,10 @@ void processAuditConfigFile(char* filename)
 			if (audit_parse_state == AUDIT_SECTION_RULE)
 			{
 				rconf = (AuditRuleConfig *) malloc(sizeof(AuditRuleConfig));
-				set_default_rule(rconf);
+				memcpy(rconf->rules,
+				       rules_template,
+				       sizeof(AuditRule) * AUDIT_NUM_RULES);
+
 				if (ruleConfig == NULL)
 					ruleConfig = list_make1(rconf);
 				else
@@ -187,7 +190,7 @@ void processAuditConfigFile(char* filename)
 				  token == AUDIT_INT ||
 				  token == AUDIT_BOOLEAN)
 			{
-				value_name = pstrdup(yytext);
+				value_name = audit_scanstr(yytext);
 				validate_settings(field_name, op_name, value_name,
 							rconf);
 			}

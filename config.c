@@ -16,6 +16,7 @@
 
 #include <stdio.h>
 #include <sys/stat.h>
+
 #include "config.h"
 
 enum
@@ -34,25 +35,22 @@ enum
 	AUDIT_EOF = 13
 };
 
-struct AuditRuleList auditRuleList[] =
+struct AuditRule rules_template[] =
 {
-	{"timestamp", AUDIT_RULE_TIMESTAMP},
-	{"database", AUDIT_RULE_DATABASE},
-	{"current_user", AUDIT_RULE_CURRENT_USER},
-	{"user", AUDIT_RULE_USER},
-	{"class", AUDIT_RULE_CLASS},
-	{"command_tag", AUDIT_RULE_COMMAND_TAG},
-	{"object_type", AUDIT_RULE_OBJECT_TYPE},
-	{"object_id", AUDIT_RULE_OBJECT_ID},
-	{"application_name", AUDIT_RULE_APPLICATION_NAME},
-	{"remote_host", AUDIT_RULE_REMOTE_HOST},
-	{"remote_port", AUDIT_RULE_REMOTE_PORT},
-	{"shutdown_status", AUDIT_RULE_SHUTDOWN_STATUS}
+	{"timestamp", NULL, false, 0, 0, AUDIT_RULE_TYPE_TIMESTAMP},
+	{"database", NULL, false, 0, 0, AUDIT_RULE_TYPE_STRING},
+	{"current_user", NULL, false, 0, 0, AUDIT_RULE_TYPE_INT},
+	{"user", NULL, false, 0, 0, AUDIT_RULE_TYPE_STRING},
+	{"class", NULL, false, 0, 0, AUDIT_RULE_TYPE_BITMAP},
+	{"command_tag", NULL, false, 0, 0, AUDIT_RULE_TYPE_STRING},
+	{"object_type", NULL, false, 0, 0, AUDIT_RULE_TYPE_BITMAP},
+	{"object_id", NULL, false, 0, 0, AUDIT_RULE_TYPE_STRING},
+	{"application_name", NULL, false, 0, 0, AUDIT_RULE_TYPE_STRING},
+	{"remote_host", NULL, false, 0, 0, AUDIT_RULE_TYPE_STRING},
+	{"remote_port", NULL, false, 0, 0, AUDIT_RULE_TYPE_INT}
 };
 
 /*
- * GUC variable for pgaudit.log_catalog
- *
  * Administrators can choose to NOT log queries when all relations used in
  * the query are in pg_catalog.  Interactive sessions (eg: psql) can cause
  * a lot of noise in the logs which might be uninteresting.
@@ -60,8 +58,6 @@ struct AuditRuleList auditRuleList[] =
 bool auditLogCatalog = true;
 
 /*
- * GUC variable for pgaudit.log_level
- *
  * Administrators can choose which log level the audit log is to be logged
  * at.  The default level is LOG, which goes into the server log but does
  * not go to the client.  Set to NOTICE in the regression tests.
@@ -70,16 +66,12 @@ char *auditLogLevelString = NULL;
 int auditLogLevel = LOG;
 
 /*
- * GUC variable for pgaudit.log_parameter
- *
  * Administrators can choose if parameters passed into a statement are
  * included in the audit log.
  */
 bool auditLogParameter = false;
 
 /*
- * GUC variable for pgaudit.log_relation
- *
  * Administrators can choose, in SESSION logging, to log each relation involved
  * in READ/WRITE class queries.  By default, SESSION logs include the query but
  * do not have a log entry for each relation.
@@ -87,8 +79,6 @@ bool auditLogParameter = false;
 bool auditLogRelation = false;
 
 /*
- * GUC variable for pgaudit.log_statement_once
- *
  * Administrators can choose to have the statement run logged only once instead
  * of on every line.  By default, the statement is repeated on every line of
  * the audit log to facilitate searching, but this can cause the log to be
@@ -97,15 +87,12 @@ bool auditLogRelation = false;
 bool auditLogStatementOnce = false;
 
 /*
- * GUC variable for pgaudit.role
- *
  * Administrators can choose which role to base OBJECT auditing off of.
  * Object-level auditing uses the privileges which are granted to this role to
  * determine if a statement should be logged.
  */
 char *auditRole = NULL;
 
-/* Global configuration variables */
 AuditOutputConfig *outputConfig;
 List	*ruleConfig;
 
@@ -114,49 +101,147 @@ static int	audit_parse_state = 0;
 /* Proto type */
 static bool	str_to_bool(const char *str);
 static bool op_to_bool(const char *str);
+static pg_time_t str_to_timestamp(const char *str);
+static int class_to_bitmap(const char *str);
+static int objecttype_to_bitmap(const char *str);
+static char *audit_scanstr(const char *str);
 
 static void validate_settings(char *field, char *op, char *value,
 								AuditRuleConfig *rconf);
 static void assign_pgaudit_log_level(char *newVal);
-static void set_default_rule(AuditRuleConfig *rconf);
 
+/*
+ * Return bitmap bit for LOG_XXX corresponding CLASS_XXX
+ */
+static int
+class_to_bitmap(const char *str)
+{
+	int class;
+
+	if (pg_strcasecmp(str, CLASS_NONE) == 0)
+		class = LOG_NONE;
+	else if (pg_strcasecmp(str, CLASS_ALL) == 0)
+		class = LOG_ALL;
+	else if (pg_strcasecmp(str, CLASS_DDL) == 0)
+		class = LOG_DDL;
+	else if (pg_strcasecmp(str, CLASS_FUNCTION) == 0)
+		class = LOG_FUNCTION;
+	else if (pg_strcasecmp(str, CLASS_MISC) == 0)
+		class = LOG_MISC;
+	else if (pg_strcasecmp(str, CLASS_READ) == 0)
+		class = LOG_READ;
+	else if (pg_strcasecmp(str, CLASS_ROLE) == 0)
+		class = LOG_ROLE;
+	else if (pg_strcasecmp(str, CLASS_WRITE) == 0)
+		class = LOG_WRITE;
+
+	return class;
+}
+
+/*
+ * Return bitmap bit for LOG_OBJECT_XXX corresponding OBJECT_TYPE_XXX
+ */
+static int
+objecttype_to_bitmap(const char *str)
+{
+	int object_type;
+	if (pg_strcasecmp(str, OBJECT_TYPE_TABLE) == 0)
+		object_type = LOG_OBJECT_TABLE;
+	else if (pg_strcasecmp(str, OBJECT_TYPE_INDEX) == 0)
+		object_type = LOG_OBJECT_INDEX;
+	else if (pg_strcasecmp(str, OBJECT_TYPE_SEQUENCE) == 0)
+		object_type = LOG_OBJECT_SEQUENCE;
+	else if (pg_strcasecmp(str, OBJECT_TYPE_TOASTVALUE) == 0)
+		object_type = LOG_OBJECT_TOASTVALUE;
+	else if (pg_strcasecmp(str, OBJECT_TYPE_VIEW) == 0)
+		object_type = LOG_OBJECT_VIEW;
+	else if (pg_strcasecmp(str, OBJECT_TYPE_MATVIEW) == 0)
+		object_type = LOG_OBJECT_MATVIEW;
+	else if (pg_strcasecmp(str, OBJECT_TYPE_COMPOSITE_TYPE) == 0)
+		object_type = LOG_OBJECT_COMPOSITE_TYPE;
+	else if (pg_strcasecmp(str, OBJECT_TYPE_FOREIGN_TABLE) == 0)
+		object_type = LOG_OBJECT_FOREIGN_TABLE;
+	else if (pg_strcasecmp(str, OBJECT_TYPE_FUNCTION) == 0)
+		object_type = LOG_OBJECT_FUNCTION;
+
+	return object_type;
+}
+
+/*
+ * Scan though str variable while eliminating the white space
+ * and \' (single-quotation) at head and tail, and then return
+ * copied string.
+ */
+static char*
+audit_scanstr(const char *str)
+{
+	int len = strlen(str);
+	int newlen;
+	int i;
+	char *newStr;
+	char buf[MAX_NAME_LEN];
+	char *bp = buf;
+
+	/* Except for \' at head and tail */
+	for (i = 1; i < (len - 1); i++)
+	{
+		/* Skip white space */
+		if (str[i] == ' ')
+			continue;
+
+		*bp = str[i];
+		bp++;
+	}
+
+	newlen = bp - buf;
+	buf[newlen] = '\0';
+	newStr = pstrdup(buf);
+
+	return newStr;
+}
+
+/* Convert string to timestamp */
+static pg_time_t
+str_to_timestamp(const char *str)
+{
+	pg_time_t ret;
+	int hour, min, sec;
+
+	sscanf(str, "%d:%d:%d", &hour, &min, &sec);
+	ret = hour * 3600 + min * 60 + sec;
+
+	return ret;
+}
+
+/*
+ * Convert operation string to boolean value representing
+ * if equal or not.
+ */
 static bool
 op_to_bool(const char *str)
 {
-	if (strcmp(str, "=") != 0)
+	if (strcmp(str, "=") == 0)
 		return true;
-	else if (strcmp(str, "!=") != 0)
+	else if (strcmp(str, "!=") == 0)
 		return false;
 
 	return false;
 }
+
+/* Convert boolean string to boolean value */
 static bool
 str_to_bool(const char *str)
 {
-	if (strcmp(str, "on") != 0 ||
-		strcmp(str, "true") != 0 ||
-		strcmp(str, "1") != 0)
+	if (strcmp(str, "on") == 0 ||
+		strcmp(str, "true") == 0 ||
+		strcmp(str, "1") == 0)
 		return true;
-	else if (strcmp(str, "off") != 0 ||
-			 strcmp(str, "false") != 0 ||
-			 strcmp(str, "0") != 0)
+	else if (strcmp(str, "off") == 0 ||
+			 strcmp(str, "false") == 0 ||
+			 strcmp(str, "0") == 0)
 		return false;
 
 	return false;
-}
-
-static void
-set_default_rule(AuditRuleConfig *rconf)
-{
-	int i;
-	for (i = 0; i < AUDIT_NUM_RULES; i++)
-	{
-		Rule *rule = &(rconf->rules[i]);
-
-		rule->field = NULL;
-		rule->value = NULL;
-		rule->eq = false;
-	}
 }
 
 /*
@@ -190,6 +275,11 @@ assign_pgaudit_log_level(char *newVal)
         auditLogLevel = LOG;
 }
 
+/*
+ * THis routine valudates the configuration using given informations;
+ * field, operation, value. We have three types of section output,
+ * option and rule, and each section can hvae some field.
+ */
 static void
 validate_settings(char *field, char *op,char *value,
 					AuditRuleConfig *rconf)
@@ -198,83 +288,172 @@ validate_settings(char *field, char *op,char *value,
 	if (audit_parse_state == AUDIT_SECTION_OUTPUT)
 	{
 		if ((strcmp(field, "logger") == 0))
-		{
 			outputConfig->logger = value;
-		}
 		else if ((strcmp(field, "level") == 0))
 		{
 			auditLogLevelString = value;
 			assign_pgaudit_log_level(auditLogLevelString);
 		}
 		else if ((strcmp(field, "pathlog") == 0))
-		{
 			outputConfig->pathlog = value;
-		}
 		else if ((strcmp(field, "facility") == 0))
-		{
 			outputConfig->facility = value;
-
-		}
 		else if ((strcmp(field, "priority") == 0))
-		{
 			outputConfig->priority = value;
-
-		}
 		else if ((strcmp(field, "ident") == 0))
-		{
 			outputConfig->ident = value;
-
-		}
 		else if ((strcmp(field, "option") == 0))
-		{
 			outputConfig->option = value;
-
-		}
 	}
 	/* Validation for options section */
 	else if (audit_parse_state == AUDIT_SECTION_OPTIONS)
 	{
 		if ((strcmp(field, "role") == 0))
-		{
 			auditRole = value;
-		}
 		else if ((strcmp(field, "log_catalog") == 0))
-		{
 			auditLogCatalog = str_to_bool(value);
-		}
 		else if ((strcmp(field, "log_parameter") == 0))
-		{
 			auditLogParameter = str_to_bool(value);
-		}
 		else if ((strcmp(field, "log_statement_once") == 0))
-		{
 			auditLogStatementOnce = str_to_bool(value);
-
-		}
-
 	}
 	/* Validation for rule section */
 	else if (audit_parse_state == AUDIT_SECTION_RULE)
 	{
-		elog(WARNING, "hogehgo %s", field);
+		int i;
+
 		if ((strcmp(field, "format") == 0))
-		{
 			rconf->format = value;
-		}
 		else
 		{
-			int i;
-
+			/*
+			 * THe rule section have their rules as an array. We
+			 * validate it to appropriate element.
+			 */
 			for (i = 0; i < AUDIT_NUM_RULES; i++)
 			{
-				if (strcasecmp(field, (auditRuleList[i]).field) == 0)
+				if (strcasecmp(field, rules_template[i].field) == 0)
 				{
-					int index = auditRuleList[i].index;
-					Rule *rule = &(rconf->rules[index]);
+					AuditRule *rule = &(rconf->rules[i]);
+					List *value_list;
+					ListCell *cell;
+					int	list_len;
 
-					rule->field = field;
-					rule->value = value;
-					rule->eq = op_to_bool(op);
+					/* The value is an CSV format */
+					if (!SplitIdentifierString(value, ',', &value_list))
+					{
+						/* error */
+					}
+
+					list_len = list_length(value_list);
+
+					/* Process value_list using appropriate method */
+					if (rule->type & AUDIT_RULE_TYPE_INT)
+					{
+						int *int_values = malloc(sizeof(int) * list_len);
+
+						/*
+						 * We expect that the format of integer type value
+						 * is '123, 234, ...'.
+						 */
+						foreach(cell, value_list)
+						{
+							int val = atoi((char *) lfirst(cell));
+							int_values[rule->nval] = val;
+							rule->nval++;
+						}
+
+						rule->values = int_values;
+						rule->eq = op_to_bool(op);
+					}
+					else if (rule->type & AUDIT_RULE_TYPE_STRING)
+					{
+						char **str_values = malloc(sizeof(char *) * list_len);
+						int i;
+
+						for (i = 0; i < list_len; i++)
+							str_values[i] = malloc(sizeof(char) * MAX_NAME_LEN);
+
+						/*
+						 * We expect that the format of string type value
+						 * is 'hoge, bar, ...'.
+						 */
+						foreach(cell, value_list)
+						{
+							char *val = (char *)lfirst(cell);
+							int len = strlen(val);
+
+							memcpy(str_values[rule->nval], val, len);
+							str_values[rule->nval][len] = '\0';
+							rule->nval++;
+						}
+
+						rule->values = str_values;
+						rule->eq = op_to_bool(op);
+					}
+					else if (rule->type & AUDIT_RULE_TYPE_BITMAP)
+					{
+						int *bitmap = malloc(sizeof(int));
+						*bitmap = 0;
+
+						/*
+						 * We expect that the format of string type value
+						 * is 'write, read, ...'.
+						 */
+						foreach(cell, value_list)
+						{
+							char *val = (char *)lfirst(cell);
+
+							/*
+							 * Only "class" and "object_type" field are
+							 * the type of bitmap so far.
+							 */
+							if (strcasecmp(field, "class") == 0)
+								*bitmap |= class_to_bitmap(val);
+							else if (strcasecmp(field, "object_type") == 0)
+								*bitmap |= objecttype_to_bitmap(val);
+
+							rule->nval++;
+						}
+
+						rule->values = bitmap;
+						rule->eq = op_to_bool(op);
+					}
+					else /* process timestamp type */
+					{
+						pg_time_t *ts_values = malloc(sizeof(pg_time_t) * list_len * 2);
+
+						/*
+						 * We expect that the format of timestamp type value
+						 * is 'HH:MM:SS-HH:MM:SS, HH:MM:SS-HH:MM:SS, ...'.
+						 * We extract it and get string representing range.
+						 */
+						foreach(cell, value_list)
+						{
+							List *ts_list;
+							ListCell *ts_cell;
+							char *range_string = (char *)lfirst(cell);
+
+							if (!SplitIdentifierString(range_string, '-', &ts_list))
+							{
+								/* error */
+							}
+
+							/*
+							 * We expect that the format of each ts_cell is
+							 * 'HH:MM:SS'
+							 */
+							foreach(ts_cell, ts_list)
+							{
+								pg_time_t ts = str_to_timestamp((char *)lfirst(ts_cell));
+								ts_values[rule->nval] = ts;
+								rule->nval++;
+							}
+						}
+
+						rule->values = ts_values;
+						rule->eq = op_to_bool(op);
+					}
 				}
 			}
 		}

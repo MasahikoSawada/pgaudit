@@ -59,36 +59,12 @@ PG_FUNCTION_INFO_V1(pgaudit_sql_drop);
  * auditLogBitmap.
  */
 
-/* Bits within auditLogBitmap, defines the classes we understand */
-#define LOG_DDL         (1 << 0)    /* CREATE/DROP/ALTER objects */
-#define LOG_FUNCTION    (1 << 1)    /* Functions and DO blocks */
-#define LOG_MISC        (1 << 2)    /* Statements not covered */
-#define LOG_READ        (1 << 3)    /* SELECTs */
-#define LOG_ROLE        (1 << 4)    /* GRANT/REVOKE, CREATE/ALTER/DROP ROLE */
-#define LOG_WRITE       (1 << 5)    /* INSERT, UPDATE, DELETE, TRUNCATE */
-
-#define LOG_NONE        0               /* nothing */
-#define LOG_ALL         (0xFFFFFFFF)    /* All */
 
 /* GUC variable for pgaudit.log, which defines the classes to log. */
 char *auditLog = NULL;
 
 /* Bitmap of classes selected */
 static int auditLogBitmap = LOG_NONE;
-
-/*
- * String constants for log classes - used when processing tokens in the
- * pgaudit.log GUC.
- */
-#define CLASS_DDL       "DDL"
-#define CLASS_FUNCTION  "FUNCTION"
-#define CLASS_MISC      "MISC"
-#define CLASS_READ      "READ"
-#define CLASS_ROLE      "ROLE"
-#define CLASS_WRITE     "WRITE"
-
-#define CLASS_NONE      "NONE"
-#define CLASS_ALL       "ALL"
 
 /*
  * GUC variable for pgaudit.config_file
@@ -121,29 +97,6 @@ char *config_file = NULL;
 #define COMMAND_EXECUTE     "EXECUTE"
 #define COMMAND_UNKNOWN     "UNKNOWN"
 
-/*
- * Object type, used for SELECT/DML statements and function calls.
- *
- * For relation objects, this is essentially relkind (though we do not have
- * access to a function which will just return a string given a relkind;
- * getRelationTypeDescription() comes close but is not public currently).
- *
- * We also handle functions, so it isn't quite as simple as just relkind.
- *
- * This should be kept consistent with what is returned from
- * pg_event_trigger_ddl_commands(), as that's what we use for DDL.
- */
-#define OBJECT_TYPE_TABLE           "TABLE"
-#define OBJECT_TYPE_INDEX           "INDEX"
-#define OBJECT_TYPE_SEQUENCE        "SEQUENCE"
-#define OBJECT_TYPE_TOASTVALUE      "TOAST TABLE"
-#define OBJECT_TYPE_VIEW            "VIEW"
-#define OBJECT_TYPE_MATVIEW         "MATERIALIZED VIEW"
-#define OBJECT_TYPE_COMPOSITE_TYPE  "COMPOSITE TYPE"
-#define OBJECT_TYPE_FOREIGN_TABLE   "FOREIGN TABLE"
-#define OBJECT_TYPE_FUNCTION        "FUNCTION"
-
-#define OBJECT_TYPE_UNKNOWN         "UNKNOWN"
 
 /*
  * String constants for testing role commands.  Rename and drop role statements
@@ -227,7 +180,6 @@ static bool statementLogged = false;
 static void
 print_config(void)
 {
-	int i;
 	ListCell *cell;
 
 	fprintf(stderr, "log_catalog = %d\n", auditLogCatalog);
@@ -243,18 +195,71 @@ print_config(void)
 	fprintf(stderr, "ident = %s\n", outputConfig->ident);
 	fprintf(stderr, "option = %s\n", outputConfig->option);
 	fprintf(stderr, "pathlog = %s\n", outputConfig->pathlog);
-	
+
 	foreach(cell, ruleConfig)
 	{
 		AuditRuleConfig *rconf = lfirst(cell);
-
+		int j;
 		fprintf(stderr, "Format = %s\n", rconf->format);
 
-		for (i = 0; i < AUDIT_NUM_RULES; i++)
+		for (j = 0; j < AUDIT_NUM_RULES; j++)
 		{
-			Rule *rule = &(rconf->rules[i]);
-			fprintf(stderr, "field = \"%s\" %s \"%s\"\n",
-				 rule->field, rule->eq ? "=" : "!=", rule->value);
+			AuditRule *rule = &(rconf->rules[j]);
+
+			if (rule->values == NULL)
+				continue;
+
+			if (rule->type & AUDIT_RULE_TYPE_INT)
+			{
+				int num = rule->nval;
+				int i;
+				for (i = 0; i < num; i++)
+				{
+					int *vals = (int *) rule->values;
+					int val = vals[i];
+					fprintf(stderr, "    INT %s %s %d\n",
+							rule->field,
+							rule->eq ? "=" : "!=",
+							val);
+				}
+			}
+			else if (rule->type & AUDIT_RULE_TYPE_STRING)
+			{
+				int num = rule->nval;
+				int i;
+				for (i = 0; i < num; i++)
+				{
+					char **vals = rule->values;
+					char *val = vals[i];
+					fprintf(stderr, "    STR %s %s %s\n",
+							rule->field,
+							rule->eq ? "=" : "!=",
+							val);
+				}
+			}
+			else if (rule->type & AUDIT_RULE_TYPE_BITMAP)
+			{
+				int *val = (int *) (rule->values);
+
+				fprintf(stderr, "    BMP %s %s %d\n",
+						rule->field,
+						rule->eq ? "=" : "!=",
+						*val);
+			}
+			else
+			{
+				int num = rule->nval;
+				int i;
+				for (i = 0; i < num; i++)
+				{
+					pg_time_t *vals = rule->values;
+					pg_time_t val = vals[i];
+					fprintf(stderr, "    TMS %s %s %u\n",
+							rule->field,
+							rule->eq ? "=" : "!=",
+							val);
+				}
+			}
 		}
 	}
 }

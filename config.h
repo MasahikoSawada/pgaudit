@@ -9,8 +9,72 @@
 
 #include "postgres.h"
 #include "nodes/pg_list.h"
+#include "utils/builtins.h"
+#include "pgtime.h"
 
-#define AUDIT_NUM_RULES 12
+#define AUDIT_NUM_RULES 11
+#define MAX_NAME_LEN 8192
+
+/*
+ * String constants for log classes - used when processing tokens in the
+ * pgaudit.log GUC.
+ */
+#define CLASS_DDL       "DDL"
+#define CLASS_FUNCTION  "FUNCTION"
+#define CLASS_MISC      "MISC"
+#define CLASS_READ      "READ"
+#define CLASS_ROLE      "ROLE"
+#define CLASS_WRITE     "WRITE"
+
+#define CLASS_NONE      "NONE"
+#define CLASS_ALL       "ALL"
+
+/* Defines the classes for filtering operation by class field */
+#define LOG_DDL         (1 << 0)    /* CREATE/DROP/ALTER objects */
+#define LOG_FUNCTION    (1 << 1)    /* Functions and DO blocks */
+#define LOG_MISC        (1 << 2)    /* Statements not covered */
+#define LOG_READ        (1 << 3)    /* SELECTs */
+#define LOG_ROLE        (1 << 4)    /* GRANT/REVOKE, CREATE/ALTER/DROP ROLE */
+#define LOG_WRITE       (1 << 5)    /* INSERT, UPDATE, DELETE, TRUNCATE */
+
+#define LOG_NONE        0               /* nothing */
+#define LOG_ALL         (0xFFFFFFFF)    /* All */
+
+/*
+ * Object type, used for SELECT/DML statements and function calls.
+ *
+ * For relation objects, this is essentially relkind (though we do not have
+ * access to a function which will just return a string given a relkind;
+ * getRelationTypeDescription() comes close but is not public currently).
+ *
+ * We also handle functions, so it isn't quite as simple as just relkind.
+ *
+ * This should be kept consistent with what is returned from
+ * pg_event_trigger_ddl_commands(), as that's what we use for DDL.
+ */
+#define OBJECT_TYPE_TABLE           "TABLE"
+#define OBJECT_TYPE_INDEX           "INDEX"
+#define OBJECT_TYPE_SEQUENCE        "SEQUENCE"
+#define OBJECT_TYPE_TOASTVALUE      "TOAST TABLE"
+#define OBJECT_TYPE_VIEW            "VIEW"
+#define OBJECT_TYPE_MATVIEW         "MATERIALIZED VIEW"
+#define OBJECT_TYPE_COMPOSITE_TYPE  "COMPOSITE TYPE"
+#define OBJECT_TYPE_FOREIGN_TABLE   "FOREIGN TABLE"
+#define OBJECT_TYPE_FUNCTION        "FUNCTION"
+
+#define OBJECT_TYPE_UNKNOWN         "UNKNOWN"
+
+/* BIts the object type for filtering object by object_type field */
+#define LOG_OBJECT_TABLE			(1 << 0)
+#define LOG_OBJECT_INDEX			(1 << 1)
+#define LOG_OBJECT_SEQUENCE			(1 << 2)
+#define LOG_OBJECT_TOASTVALUE		(1 << 3)
+#define LOG_OBJECT_VIEW				(1 << 4)
+#define LOG_OBJECT_MATVIEW			(1 << 5)
+#define LOG_OBJECT_COMPOSITE_TYPE	(1 << 6)
+#define LOG_OBJECT_FOREIGN_TABLE	(1 << 7)
+#define LOG_OBJECT_FUNCTION			(1 << 8)
+#define LOG_ALL_OBJECT_TYPE 		0x1F
 
 typedef struct AuditOutputConfig
 {
@@ -22,7 +86,6 @@ typedef struct AuditOutputConfig
 	char *ident;
 	char *option;
 } AuditOutputConfig;
-
 
 enum
 {
@@ -37,26 +100,31 @@ enum
 	AUDIT_RULE_APPLICATION_NAME,
 	AUDIT_RULE_REMOTE_HOST,
 	AUDIT_RULE_REMOTE_PORT,
-	AUDIT_RULE_SHUTDOWN_STATUS
 };
 
-typedef struct AuditRuleList
+/* Configuration variable types */
+enum
 {
-	char *field;
-	int	index;
-} AuditRuleList;
+	AUDIT_RULE_TYPE_INT = 1,
+	AUDIT_RULE_TYPE_STRING,
+	AUDIT_RULE_TYPE_TIMESTAMP,
+	AUDIT_RULE_TYPE_BITMAP
+};
 
-typedef struct Rule
+typedef struct AuditRule
 {
 	char *field;
-	char *value;
+	void *values;
 	bool eq;
-} Rule;
+	int	nval;
+	int	bitmap;
+	int	type;
+} AuditRule;
 
 typedef struct AuditRuleConfig
 {
 	char *format;
-	Rule rules[AUDIT_NUM_RULES];
+	AuditRule rules[AUDIT_NUM_RULES];
 } AuditRuleConfig;
 
 /* Global configuration variables */
