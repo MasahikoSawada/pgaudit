@@ -398,7 +398,7 @@ validate_settings(char *field, char *op,char *value,
 
 						/*
 						 * We expect that the format of string type value
-						 * is 'write, read, ...'.
+						 * is 'write, read, ...'. Compute bitmap for filtering.
 						 */
 						foreach(cell, value_list)
 						{
@@ -412,10 +412,13 @@ validate_settings(char *field, char *op,char *value,
 								*bitmap |= class_to_bitmap(val);
 							else if (strcasecmp(field, "object_type") == 0)
 								*bitmap |= objecttype_to_bitmap(val);
-
-							rule->nval++;
 						}
 
+						/*
+						 * For bitmap type, the number of values of rule->values
+						 * should be 1 because it's a bitmap.
+						 */
+						rule->nval = 1;
 						rule->values = bitmap;
 						rule->eq = op_to_bool(op);
 					}
