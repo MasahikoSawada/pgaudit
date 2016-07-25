@@ -91,7 +91,7 @@ bool auditLogStatementOnce = false;
  * Object-level auditing uses the privileges which are granted to this role to
  * determine if a statement should be logged.
  */
-char *auditRole = NULL;
+char *auditRole = "";
 
 AuditOutputConfig *outputConfig;
 List	*ruleConfigs;
