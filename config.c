@@ -394,7 +394,7 @@ validate_settings(char *field, char *op,char *value,
 					}
 					else if (rule->type == AUDIT_RULE_TYPE_BITMAP)
 					{
-						int *bitmap = malloc(sizeof(int));
+						int *bitmap = (int *) malloc(sizeof(int));
 						*bitmap = 0;
 
 						/*
@@ -416,14 +416,14 @@ validate_settings(char *field, char *op,char *value,
 						}
 
 						/*
-						 * For bitmap type, the number of values of rule->values
+						 * For bitmap type, the number of values of rule.values
 						 * should be 1 because it's a bitmap.
 						 */
 						rule->nval = 1;
 						rule->values = bitmap;
 						rule->eq = op_to_bool(op);
 					}
-					else /* process timestamp type */
+					else if (rule->type == AUDIT_RULE_TYPE_TIMESTAMP)
 					{
 						pg_time_t *ts_values = malloc(sizeof(pg_time_t) * list_len * 2);
 

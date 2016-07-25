@@ -195,10 +195,11 @@ print_config(void)
 				int i;
 				for (i = 0; i < num; i++)
 				{
-					pg_time_t val = ((pg_time_t *)rule.values)[i];
-					fprintf(stderr, "    TMS %s %s %u\n",
-							rule.field,
-							rule.eq ? "=" : "!=",
+					pg_time_t *vals = rule->values;
+					pg_time_t val = vals[i];
+					fprintf(stderr, "    TMS %s %s %ld\n",
+							rule->field,
+							rule->eq ? "=" : "!=",
 							val);
 				}
 			}
@@ -1441,108 +1442,6 @@ pgaudit_sql_drop(PG_FUNCTION_ARGS)
 }
 
 /*
- * GUC check and assign functions
- */
-
-/*
- * Take a pgaudit.log value such as "read, write, dml", verify that each of the
- * comma-separated tokens corresponds to a LogClass value, and convert them into
- * a bitmap that log_audit_event can check.
- */
-static bool
-check_pgaudit_log(char **newVal, void **extra, GucSource source)
-{
-    List *flagRawList;
-    char *rawVal;
-    ListCell *lt;
-    int *flags;
-
-    /* Make sure newval is a comma-separated list of tokens. */
-    rawVal = pstrdup(*newVal);
-    if (!SplitIdentifierString(rawVal, ',', &flagRawList))
-    {
-        GUC_check_errdetail("List syntax is invalid");
-        list_free(flagRawList);
-        pfree(rawVal);
-        return false;
-    }
-
-    /*
-     * Check that we recognise each token, and add it to the bitmap we're
-     * building up in a newly-allocated int *f.
-     */
-    if (!(flags = (int *) malloc(sizeof(int))))
-        return false;
-
-    *flags = 0;
-
-    foreach(lt, flagRawList)
-    {
-        char *token = (char *) lfirst(lt);
-        bool subtract = false;
-        int class;
-
-        /* If token is preceded by -, then the token is subtractive */
-        if (token[0] == '-')
-        {
-            token++;
-            subtract = true;
-        }
-
-        /* Test each token */
-        if (pg_strcasecmp(token, CLASS_NONE) == 0)
-            class = LOG_NONE;
-        else if (pg_strcasecmp(token, CLASS_ALL) == 0)
-            class = LOG_ALL;
-        else if (pg_strcasecmp(token, CLASS_DDL) == 0)
-            class = LOG_DDL;
-        else if (pg_strcasecmp(token, CLASS_FUNCTION) == 0)
-            class = LOG_FUNCTION;
-        else if (pg_strcasecmp(token, CLASS_MISC) == 0)
-            class = LOG_MISC;
-        else if (pg_strcasecmp(token, CLASS_READ) == 0)
-            class = LOG_READ;
-        else if (pg_strcasecmp(token, CLASS_ROLE) == 0)
-            class = LOG_ROLE;
-        else if (pg_strcasecmp(token, CLASS_WRITE) == 0)
-            class = LOG_WRITE;
-        else
-        {
-            free(flags);
-            pfree(rawVal);
-            list_free(flagRawList);
-            return false;
-        }
-
-        /* Add or subtract class bits from the log bitmap */
-        if (subtract)
-            *flags &= ~class;
-        else
-            *flags |= class;
-    }
-
-    pfree(rawVal);
-    list_free(flagRawList);
-
-    /* Store the bitmap for assign_pgaudit_log */
-    *extra = flags;
-
-    return true;
-}
-
-/*
- * Set pgaudit_log from extra (ignoring newVal, which has already been
- * converted to a bitmap above). Note that extra may not be set if the
- * assignment is to be suppressed.
- */
-static void
-assign_pgaudit_log(const char *newVal, void *extra)
-{
-    if (extra)
-        auditLogBitmap = *(int *) extra;
-}
-
-/*
  * Define GUC variables and install hooks upon module load.
  */
 void
@@ -1550,6 +1449,7 @@ _PG_init(void)
 {
     /* Be sure we do initialization only once */
     static bool inited = false;
+	MemoryContext old_ctx;
 
     if (inited)
         return;
@@ -1606,12 +1506,14 @@ _PG_init(void)
 	if (config_file == NULL)
 		ereport(ERROR, (errmsg("\"pgaudit.config_file\" must be specify when pgaudit is loaded")));
 
+	old_ctx = MemoryContextSwitchTo(TopMemoryContext);
 	outputConfig = (AuditOutputConfig *) malloc(sizeof(AuditOutputConfig));
 	ruleConfigs = NULL;
 	
 	processAuditConfigFile(config_file);
 	print_config();
-	test_driver();
+
+	MemoryContextSwitchTo(old_ctx);
 
     /* Log that the extension has completed initialization */
     ereport(LOG, (errmsg("pgaudit extension initialized")));
