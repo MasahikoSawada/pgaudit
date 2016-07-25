@@ -14,53 +14,6 @@ static bool apply_integer_rule(int value, AuditRule rule);
 static bool apply_timestamp_rule(AuditRule rule);
 static bool apply_bitmap_rule(int value, AuditRule rule); 
 
-/* Debug funciton which will be removed */
-void
-test_driver(void)
-{
-	ListCell *cell;
-	int num = 1;
-
-	foreach(cell, ruleConfigs)
-	{
-		AuditRuleConfig *rconf = (AuditRuleConfig *)lfirst(cell);
-		bool ret;
-		int int_val;
-
-		fprintf(stderr, "Apply rule %d\n", num);
-		/* timestamp */
-		ret = apply_one_rule(NULL, rconf->rules[AUDIT_RULE_TIMESTAMP]);
-		fprintf(stderr, "    timestamp %d\n", ret);
-
-		/* database */
-		ret = apply_one_rule("postgres", rconf->rules[AUDIT_RULE_DATABASE]);
-		fprintf(stderr, "    database %d\n", ret);
-
-		/* current_user */
-		int_val = 32;
-		ret = apply_one_rule(&int_val, rconf->rules[AUDIT_RULE_CURRENT_USER]);
-		fprintf(stderr, "    current_user %d\n", ret);
-		
-		/* user */
-
-		/* class */
-
-		/* command_tag */
-
-		/* object_type */
-
-		/* object_id */
-
-		/* applicatino_name */
-
-		/* remote_host */
-		
-		/* remote_port */
-		num++;
-	}
-
-}
-
 /*
  * Check if this audit event should be logged by validating
  * configured rules. Return array of bool representing index of

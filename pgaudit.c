@@ -403,7 +403,6 @@ static void
 log_audit_event(AuditEventStackItem *stackItem)
 {
     /* By default, put everything in the MISC class. */
-    int class = LOG_MISC;
     const char *className = CLASS_MISC;
     MemoryContext contextOld;
     StringInfoData auditStr;
@@ -429,7 +428,7 @@ log_audit_event(AuditEventStackItem *stackItem)
 	 * any rules we defined. Return from here if not matched to any rules.
 	 */
 	if (!stackItem->auditEvent.granted &&
-		apply_all_rules(stackItem, valid_rules))
+		!apply_all_rules(stackItem, valid_rules))
 		return ;
 
     /*
@@ -1181,8 +1180,7 @@ pgaudit_ProcessUtility_hook(Node *parsetree,
          * If this is a DO block log it before calling the next ProcessUtility
          * hook.
          */
-        if (auditLogBitmap & LOG_FUNCTION &&
-            stackItem->auditEvent.commandTag == T_DoStmt &&
+        if (stackItem->auditEvent.commandTag == T_DoStmt &&
             !IsAbortedTransactionBlockState())
             log_audit_event(stackItem);
     }
@@ -1213,7 +1211,7 @@ pgaudit_ProcessUtility_hook(Node *parsetree,
          * already been logged by another hook, and the transaction is not
          * aborted.
          */
-        if (auditLogBitmap != 0 && !stackItem->auditEvent.logged)
+        if (!stackItem->auditEvent.logged)
             log_audit_event(stackItem);
     }
 }

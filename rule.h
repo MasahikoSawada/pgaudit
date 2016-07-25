@@ -65,4 +65,3 @@ enum
 
 /* Fucntion proto types */
 extern bool apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules);
-extern void test_driver(void);
