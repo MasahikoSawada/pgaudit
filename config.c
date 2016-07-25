@@ -94,11 +94,11 @@ bool auditLogStatementOnce = false;
 char *auditRole = NULL;
 
 AuditOutputConfig *outputConfig;
-List	*ruleConfig;
+List	*ruleConfigs;
 
 static int	audit_parse_state = 0;
 
-/* Proto type */
+/* Primiive function */
 static bool	str_to_bool(const char *str);
 static bool op_to_bool(const char *str);
 static pg_time_t str_to_timestamp(const char *str);
@@ -106,6 +106,7 @@ static int class_to_bitmap(const char *str);
 static int objecttype_to_bitmap(const char *str);
 static char *audit_scanstr(const char *str);
 
+/* Function for configuration settings */
 static void validate_settings(char *field, char *op, char *value,
 								AuditRuleConfig *rconf);
 static void assign_pgaudit_log_level(char *newVal);
@@ -348,7 +349,7 @@ validate_settings(char *field, char *op,char *value,
 					list_len = list_length(value_list);
 
 					/* Process value_list using appropriate method */
-					if (rule->type & AUDIT_RULE_TYPE_INT)
+					if (rule->type == AUDIT_RULE_TYPE_INT)
 					{
 						int *int_values = malloc(sizeof(int) * list_len);
 
@@ -366,7 +367,7 @@ validate_settings(char *field, char *op,char *value,
 						rule->values = int_values;
 						rule->eq = op_to_bool(op);
 					}
-					else if (rule->type & AUDIT_RULE_TYPE_STRING)
+					else if (rule->type == AUDIT_RULE_TYPE_STRING)
 					{
 						char **str_values = malloc(sizeof(char *) * list_len);
 						int i;
@@ -391,7 +392,7 @@ validate_settings(char *field, char *op,char *value,
 						rule->values = str_values;
 						rule->eq = op_to_bool(op);
 					}
-					else if (rule->type & AUDIT_RULE_TYPE_BITMAP)
+					else if (rule->type == AUDIT_RULE_TYPE_BITMAP)
 					{
 						int *bitmap = malloc(sizeof(int));
 						*bitmap = 0;
@@ -465,7 +466,6 @@ validate_settings(char *field, char *op,char *value,
 	{
 		/* error */
 	}
-
 }
-	
+
 #include "pgaudit_scan.c"

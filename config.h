@@ -12,6 +12,8 @@
 #include "utils/builtins.h"
 #include "pgtime.h"
 
+#include "rule.h"
+
 #define AUDIT_NUM_RULES 11
 #define MAX_NAME_LEN 8192
 
@@ -87,30 +89,6 @@ typedef struct AuditOutputConfig
 	char *option;
 } AuditOutputConfig;
 
-enum
-{
-	AUDIT_RULE_TIMESTAMP = 0,
-	AUDIT_RULE_DATABASE,
-	AUDIT_RULE_CURRENT_USER,
-	AUDIT_RULE_USER,
-	AUDIT_RULE_CLASS,
-	AUDIT_RULE_COMMAND_TAG,
-	AUDIT_RULE_OBJECT_TYPE,
-	AUDIT_RULE_OBJECT_ID,
-	AUDIT_RULE_APPLICATION_NAME,
-	AUDIT_RULE_REMOTE_HOST,
-	AUDIT_RULE_REMOTE_PORT,
-};
-
-/* Configuration variable types */
-enum
-{
-	AUDIT_RULE_TYPE_INT = 1,
-	AUDIT_RULE_TYPE_STRING,
-	AUDIT_RULE_TYPE_TIMESTAMP,
-	AUDIT_RULE_TYPE_BITMAP
-};
-
 typedef struct AuditRule
 {
 	char *field;
@@ -137,7 +115,7 @@ extern bool auditLogStatementOnce;
 extern char *auditRole;
 
 extern AuditOutputConfig *outputConfig;
-extern List	*ruleConfig;
+extern List	*ruleConfigs;
 
 /* extern functions */
 extern void processAuditConfigFile(char* filename);

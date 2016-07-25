@@ -39,8 +39,8 @@
 #include "utils/syscache.h"
 #include "utils/timestamp.h"
 
-#include "config.h"
 #include "pgaudit.h"
+#include "config.h"
 
 PG_MODULE_MAGIC;
 
@@ -98,65 +98,7 @@ char *config_file = NULL;
 #define COMMAND_UNKNOWN     "UNKNOWN"
 
 
-/*
- * String constants for testing role commands.  Rename and drop role statements
- * are assigned the nodeTag T_RenameStmt and T_DropStmt respectively.  This is
- * not very useful for classification, so we resort to comparing strings
- * against the result of CreateCommandTag(parsetree).
- */
-#define COMMAND_ALTER_ROLE          "ALTER ROLE"
-#define COMMAND_DROP_ROLE           "DROP ROLE"
-#define COMMAND_GRANT               "GRANT"
-#define COMMAND_REVOKE              "REVOKE"
 
-
-/*
- * String constants used for redacting text after the password token in
- * CREATE/ALTER ROLE commands.
- */
-#define TOKEN_PASSWORD             "password"
-#define TOKEN_REDACTED             "<REDACTED>"
-
-/*
- * An AuditEvent represents an operation that potentially affects a single
- * object.  If a statement affects multiple objects then multiple AuditEvents
- * are created to represent them.
- */
-typedef struct
-{
-    int64 statementId;          /* Simple counter */
-    int64 substatementId;       /* Simple counter */
-
-    LogStmtLevel logStmtLevel;  /* From GetCommandLogLevel when possible,
-                                   generated when not. */
-    NodeTag commandTag;         /* same here */
-    const char *command;        /* same here */
-    const char *objectType;     /* From event trigger when possible,
-                                   generated when not. */
-    char *objectName;           /* Fully qualified object identification */
-    const char *commandText;    /* sourceText / queryString */
-    ParamListInfo paramList;    /* QueryDesc/ProcessUtility parameters */
-
-    bool granted;               /* Audit role has object permissions? */
-    bool logged;                /* Track if we have logged this event, used
-                                   post-ProcessUtility to make sure we log */
-    bool statementLogged;       /* Track if we have logged the statement */
-} AuditEvent;
-
-/*
- * A simple FIFO queue to keep track of the current stack of audit events.
- */
-typedef struct AuditEventStackItem
-{
-    struct AuditEventStackItem *next;
-
-    AuditEvent auditEvent;
-
-    int64 stackId;
-
-    MemoryContext contextAudit;
-    MemoryContextCallback contextCallback;
-} AuditEventStackItem;
 
 AuditEventStackItem *auditEventStack = NULL;
 
@@ -177,6 +119,7 @@ static int64 stackTotal = 0;
 
 static bool statementLogged = false;
 
+/* Debug functio which will be removed */
 static void
 print_config(void)
 {
@@ -196,7 +139,7 @@ print_config(void)
 	fprintf(stderr, "option = %s\n", outputConfig->option);
 	fprintf(stderr, "pathlog = %s\n", outputConfig->pathlog);
 
-	foreach(cell, ruleConfig)
+	foreach(cell, ruleConfigs)
 	{
 		AuditRuleConfig *rconf = lfirst(cell);
 		int j;
@@ -204,59 +147,58 @@ print_config(void)
 
 		for (j = 0; j < AUDIT_NUM_RULES; j++)
 		{
-			AuditRule *rule = &(rconf->rules[j]);
+			AuditRule rule = rconf->rules[j];
 
-			if (rule->values == NULL)
+			if (rule.values == NULL)
 				continue;
 
-			if (rule->type & AUDIT_RULE_TYPE_INT)
+			if (isIntRule(rule))
 			{
-				int num = rule->nval;
+				int num = rule.nval;
 				int i;
+
 				for (i = 0; i < num; i++)
 				{
-					int *vals = (int *) rule->values;
-					int val = vals[i];
+					int val = ((int *)rule.values)[i];
 					fprintf(stderr, "    INT %s %s %d\n",
-							rule->field,
-							rule->eq ? "=" : "!=",
+							rule.field,
+							rule.eq ? "=" : "!=",
 							val);
 				}
 			}
-			else if (rule->type & AUDIT_RULE_TYPE_STRING)
+			else if (isStringRule(rule))
 			{
-				int num = rule->nval;
+				int num = rule.nval;
 				int i;
+
 				for (i = 0; i < num; i++)
 				{
-					char **vals = rule->values;
-					char *val = vals[i];
+					char *val = ((char **)rule.values)[i];
 					fprintf(stderr, "    STR %s %s %s\n",
-							rule->field,
-							rule->eq ? "=" : "!=",
+							rule.field,
+							rule.eq ? "=" : "!=",
 							val);
 				}
 			}
-			else if (rule->type & AUDIT_RULE_TYPE_BITMAP)
+			else if (isBitmapRule(rule))
 			{
-				int *val = (int *) (rule->values);
+				int val = *((int *)rule.values);
 
 				fprintf(stderr, "    BMP %s %s %d\n",
-						rule->field,
-						rule->eq ? "=" : "!=",
-						*val);
+						rule.field,
+						rule.eq ? "=" : "!=",
+						val);
 			}
 			else
 			{
-				int num = rule->nval;
+				int num = rule.nval;
 				int i;
 				for (i = 0; i < num; i++)
 				{
-					pg_time_t *vals = rule->values;
-					pg_time_t val = vals[i];
+					pg_time_t val = ((pg_time_t *)rule.values)[i];
 					fprintf(stderr, "    TMS %s %s %u\n",
-							rule->field,
-							rule->eq ? "=" : "!=",
+							rule.field,
+							rule.eq ? "=" : "!=",
 							val);
 				}
 			}
@@ -465,148 +407,15 @@ log_audit_event(AuditEventStackItem *stackItem)
     const char *className = CLASS_MISC;
     MemoryContext contextOld;
     StringInfoData auditStr;
+	bool *valid_rules;
 
     /* If this event has already been logged don't log it again */
     if (stackItem->auditEvent.logged)
         return;
 
-    /* Classify the statement using log stmt level and the command tag */
-    switch (stackItem->auditEvent.logStmtLevel)
-    {
-            /* All mods go in WRITE class, except EXECUTE */
-        case LOGSTMT_MOD:
-            className = CLASS_WRITE;
-            class = LOG_WRITE;
+	valid_rules = palloc(sizeof(bool) * list_length(ruleConfigs));
 
-            switch (stackItem->auditEvent.commandTag)
-            {
-                    /* Currently, only EXECUTE is different */
-                case T_ExecuteStmt:
-                    className = CLASS_MISC;
-                    class = LOG_MISC;
-                    break;
-                default:
-                    break;
-            }
-            break;
-
-            /* These are DDL, unless they are ROLE */
-        case LOGSTMT_DDL:
-            className = CLASS_DDL;
-            class = LOG_DDL;
-
-            /* Identify role statements */
-            switch (stackItem->auditEvent.commandTag)
-            {
-                /* In the case of create and alter role redact all text in the
-                 * command after the password token for security.  This doesn't
-                 * cover all possible cases where passwords can be leaked but
-                 * should take care of the most common usage.
-                 */
-                case T_CreateRoleStmt:
-                case T_AlterRoleStmt:
-
-                    if (stackItem->auditEvent.commandText != NULL)
-                    {
-                        char *commandStr;
-                        char *passwordToken;
-                        int i;
-                        int passwordPos;
-
-                        /* Copy the command string and convert to lower case */
-                        commandStr = pstrdup(stackItem->auditEvent.commandText);
-
-                        for (i = 0; commandStr[i]; i++)
-                            commandStr[i] =
-                                (char)pg_tolower((unsigned char)commandStr[i]);
-
-                        /* Find index of password token */
-                        passwordToken = strstr(commandStr, TOKEN_PASSWORD);
-
-                        if (passwordToken != NULL)
-                        {
-                            /* Copy command string up to password token */
-                            passwordPos = (passwordToken - commandStr) +
-                                          strlen(TOKEN_PASSWORD);
-
-                            commandStr = palloc(passwordPos + 1 +
-                                                strlen(TOKEN_REDACTED) + 1);
-
-                            strncpy(commandStr,
-                                    stackItem->auditEvent.commandText,
-                                    passwordPos);
-
-                            /* And append redacted token */
-                            commandStr[passwordPos] = ' ';
-
-                            strcpy(commandStr + passwordPos + 1, TOKEN_REDACTED);
-
-                            /* Assign new command string */
-                            stackItem->auditEvent.commandText = commandStr;
-                        }
-                    }
-
-                /* Classify role statements */
-                case T_GrantStmt:
-                case T_GrantRoleStmt:
-                case T_DropRoleStmt:
-                case T_AlterRoleSetStmt:
-                case T_AlterDefaultPrivilegesStmt:
-                    className = CLASS_ROLE;
-                    class = LOG_ROLE;
-                    break;
-
-                    /*
-                     * Rename and Drop are general and therefore we have to do
-                     * an additional check against the command string to see
-                     * if they are role or regular DDL.
-                     */
-                case T_RenameStmt:
-                case T_DropStmt:
-                    if (pg_strcasecmp(stackItem->auditEvent.command,
-                                      COMMAND_ALTER_ROLE) == 0 ||
-                        pg_strcasecmp(stackItem->auditEvent.command,
-                                      COMMAND_DROP_ROLE) == 0)
-                    {
-                        className = CLASS_ROLE;
-                        class = LOG_ROLE;
-                    }
-                    break;
-
-                default:
-                    break;
-            }
-            break;
-
-            /* Classify the rest */
-        case LOGSTMT_ALL:
-            switch (stackItem->auditEvent.commandTag)
-            {
-                    /* READ statements */
-                case T_CopyStmt:
-                case T_SelectStmt:
-                case T_PrepareStmt:
-                case T_PlannedStmt:
-                    className = CLASS_READ;
-                    class = LOG_READ;
-                    break;
-
-                    /* FUNCTION statements */
-                case T_DoStmt:
-                    className = CLASS_FUNCTION;
-                    class = LOG_FUNCTION;
-                    break;
-
-                default:
-                    break;
-            }
-            break;
-
-        case LOGSTMT_NONE:
-            break;
-    }
-
-    /*----------
+	/*----------
      * Only log the statement if:
      *
      * 1. If object was selected for audit logging (granted), or
@@ -615,8 +424,13 @@ log_audit_event(AuditEventStackItem *stackItem)
      * If neither of these is true, return.
      *----------
      */
-    if (!stackItem->auditEvent.granted && !(auditLogBitmap & class))
-        return;
+	/*
+	 * XXX : Here, we have to do check if auditEven can be machted with
+	 * any rules we defined. Return from here if not matched to any rules.
+	 */
+	if (!stackItem->auditEvent.granted &&
+		apply_all_rules(stackItem, valid_rules))
+		return ;
 
     /*
      * Use audit memory context in case something is not free'd while
@@ -1730,8 +1544,6 @@ assign_pgaudit_log(const char *newVal, void *extra)
         auditLogBitmap = *(int *) extra;
 }
 
-
-
 /*
  * Define GUC variables and install hooks upon module load.
  */
@@ -1748,24 +1560,6 @@ _PG_init(void)
     if (!process_shared_preload_libraries_in_progress)
         ereport(ERROR, (errcode(ERRCODE_OBJECT_NOT_IN_PREREQUISITE_STATE),
                 errmsg("pgaudit must be loaded via shared_preload_libraries")));
-
-    /* Define pgaudit.log */
-    DefineCustomStringVariable(
-        "pgaudit.log",
-
-        "Specifies which classes of statements will be logged by session audit "
-        "logging. Multiple classes can be provided using a comma-separated "
-        "list and classes can be subtracted by prefacing the class with a "
-        "- sign.",
-
-        NULL,
-        &auditLog,
-        "none",
-        PGC_SUSET,
-        GUC_LIST_INPUT | GUC_NOT_IN_SAMPLE,
-        check_pgaudit_log,
-        assign_pgaudit_log,
-        NULL);
 
     /* Define pgaudit.log_relation */
     DefineCustomBoolVariable(
@@ -1815,10 +1609,11 @@ _PG_init(void)
 		ereport(ERROR, (errmsg("\"pgaudit.config_file\" must be specify when pgaudit is loaded")));
 
 	outputConfig = (AuditOutputConfig *) malloc(sizeof(AuditOutputConfig));
-	ruleConfig = NULL;
+	ruleConfigs = NULL;
 	
 	processAuditConfigFile(config_file);
 	print_config();
+	test_driver();
 
     /* Log that the extension has completed initialization */
     ereport(LOG, (errmsg("pgaudit extension initialized")));

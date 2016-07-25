@@ -9,7 +9,7 @@
 LFLAGS = -i
 YFLAGS = -d
 MODULE_big = pgaudit
-OBJS = pgaudit.o config.o
+OBJS = pgaudit.o config.o rule.o
 
 EXTENSION = pgaudit
 DATA = pgaudit--1.0.sql

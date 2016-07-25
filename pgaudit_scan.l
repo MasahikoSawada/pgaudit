@@ -44,7 +44,7 @@ operator	{op_eq}|{op_ne}
 
 field_output    logger|pathlog|ident|option|facility|priority|level|maxlength
 field_options   log_catalog|log_level|log_parameter|log_statement_once|role
-field_rule      format|timestamp|database|current_user|user|class|command_tag|object_type|object_id|application_name|command_result|remote_host|shutdown_status|remote_port
+field_rule      format|timestamp|database|current_user|user|class|command_tag|object_type|object_id|application_name|command_result|remote_host|remote_port
 %%
 
 <<EOF>>         return AUDIT_EOF;
@@ -151,10 +151,10 @@ void processAuditConfigFile(char* filename)
 				       rules_template,
 				       sizeof(AuditRule) * AUDIT_NUM_RULES);
 
-				if (ruleConfig == NULL)
-					ruleConfig = list_make1(rconf);
+				if (ruleConfigs == NULL)
+					ruleConfigs = list_make1(rconf);
 				else
-					ruleConfig = lappend(ruleConfig, rconf);
+					ruleConfigs = lappend(ruleConfigs, rconf);
 			}
 			continue;
 		}
