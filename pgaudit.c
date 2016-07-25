@@ -195,11 +195,10 @@ print_config(void)
 				int i;
 				for (i = 0; i < num; i++)
 				{
-					pg_time_t *vals = rule->values;
-					pg_time_t val = vals[i];
+					pg_time_t val = ((pg_time_t *)rule.values)[i];
 					fprintf(stderr, "    TMS %s %s %ld\n",
-							rule->field,
-							rule->eq ? "=" : "!=",
+							rule.field,
+							rule.eq ? "=" : "!=",
 							val);
 				}
 			}

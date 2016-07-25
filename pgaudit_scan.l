@@ -146,7 +146,7 @@ void processAuditConfigFile(char* filename)
 
 			if (audit_parse_state == AUDIT_SECTION_RULE)
 			{
-				rconf = (AuditRuleConfig *) malloc(sizeof(AuditRuleConfig));
+				rconf = (AuditRuleConfig *) palloc(sizeof(AuditRuleConfig));
 				memcpy(rconf->rules,
 				       rules_template,
 				       sizeof(AuditRule) * AUDIT_NUM_RULES);

@@ -351,7 +351,7 @@ validate_settings(char *field, char *op,char *value,
 					/* Process value_list using appropriate method */
 					if (rule->type == AUDIT_RULE_TYPE_INT)
 					{
-						int *int_values = malloc(sizeof(int) * list_len);
+						int *int_values = palloc(sizeof(int) * list_len);
 
 						/*
 						 * We expect that the format of integer type value
@@ -369,11 +369,11 @@ validate_settings(char *field, char *op,char *value,
 					}
 					else if (rule->type == AUDIT_RULE_TYPE_STRING)
 					{
-						char **str_values = malloc(sizeof(char *) * list_len);
+						char **str_values = palloc(sizeof(char *) * list_len);
 						int i;
 
 						for (i = 0; i < list_len; i++)
-							str_values[i] = malloc(sizeof(char) * MAX_NAME_LEN);
+							str_values[i] = palloc(sizeof(char) * MAX_NAME_LEN);
 
 						/*
 						 * We expect that the format of string type value
@@ -394,7 +394,7 @@ validate_settings(char *field, char *op,char *value,
 					}
 					else if (rule->type == AUDIT_RULE_TYPE_BITMAP)
 					{
-						int *bitmap = (int *) malloc(sizeof(int));
+						int *bitmap = (int *) palloc(sizeof(int));
 						*bitmap = 0;
 
 						/*
@@ -425,7 +425,7 @@ validate_settings(char *field, char *op,char *value,
 					}
 					else if (rule->type == AUDIT_RULE_TYPE_TIMESTAMP)
 					{
-						pg_time_t *ts_values = malloc(sizeof(pg_time_t) * list_len * 2);
+						pg_time_t *ts_values = palloc(sizeof(pg_time_t) * list_len * 2);
 
 						/*
 						 * We expect that the format of timestamp type value
