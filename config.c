@@ -330,6 +330,7 @@ validate_settings(char *field, char *op,char *value,
 			rconf->format = value;
 		else
 		{
+			pg_usleep(1);
 			/*
 			 * THe rule section have their rules as an array. We
 			 * validate it to appropriate element.
@@ -459,9 +460,9 @@ validate_settings(char *field, char *op,char *value,
 						rule->values = ts_values;
 						rule->eq = op_to_bool(op);
 					}
-				} /* found corresponding rule */
 
-				break;
+					break;
+				} /* found corresponding rule */
 			} /* loop for rules_template */
 		}
 	}

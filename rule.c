@@ -180,31 +180,21 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
 		AuditRuleConfig *rconf = (AuditRuleConfig *)lfirst(cell);
 		bool ret = false;
 
-		if (apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]) &&
-			apply_one_rule(MyProcPort->database_name, rconf->rules[AUDIT_RULE_DATABASE]))
+		if (apply_one_rule(NULL, rconf->rules[AUDIT_RULE_TIMESTAMP]) &&
+			apply_one_rule(MyProcPort->database_name, rconf->rules[AUDIT_RULE_DATABASE]) &&
+			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_CURRENT_USER]) &&
+			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_USER]) &&
+			apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]) &&
+			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_COMMAND_TAG]) &&
+			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_OBJECT_TYPE]) &&
+			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_OBJECT_ID]) &&
+			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_APPLICATION_NAME]) &&
+			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_REMOTE_HOST]) &&
+			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_REMOTE_PORT]))
 		{
 			matched = true;
 			ret = true;
 		}
-
-		/* The rule section has 4 types 11 rules */
-		/*
-		if (apply_one_rule(rconf->rules[AUDIT_RULE_TIMESTAMP]) &&
-			apply_one_rules(rconf->rules[AUDIT_RULE_DATABASE]) &&
-			apply_one_rules(rconf->rules[AUDIT_RULE_CURRENT_USER]) &&
-			apply_one_rule(rconf->rules[AUDIT_RULE_USER]) &&
-			apply_one_rule(rconf->rules[AUDIT_RULE_CLASS]) &&
-			apply_one_rule(rconf->rules[AUDIT_RULE_COMMAND_TAG]) &&
-			apply_one_rule(rconf->rules[AUDIT_RULE_OBJECT_TYPE]) &&
-			apply_one_rule(rconf->rules[AUDIT_RULE_OBJECT_ID]) &&
-			apply_one_rule(rconf->rules[AUDIT_RULE_APPLICATION_NAME]) &&
-			apply_one_rule(rconf->rules[AUDIT_RULE_REMOTE_HOST]) &&
-			apply_one_rule(rconf->rules[AUDIT_RULE_REMOTE_PORT])
-		{
-			matched = true;
-			ret = true;
-		}
-		*/
 
 		/*
 		 * Set true to corresponding index iff all apply_XXX method
@@ -223,6 +213,9 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
 static bool
 apply_one_rule(void *value, AuditRule rule)
 {
+	if (value == NULL)
+		return true;
+
 	if (isIntRule(rule))
 	{
 		int *val = (int *)value;

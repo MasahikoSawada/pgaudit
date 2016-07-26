@@ -82,6 +82,10 @@ char *config_file = NULL;
 
 AuditEventStackItem *auditEventStack = NULL;
 
+static void append_valid_csv(StringInfoData *buffer, const char *appendStr);
+static void emit_session_sql_log(AuditEventStackItem *stackItem, bool *valid_rules,
+								   const char *className);
+
 /*
  * pgAudit runs queries of its own when using the event trigger system.
  *
@@ -98,6 +102,111 @@ static int64 substatementTotal = 0;
 static int64 stackTotal = 0;
 
 static bool statementLogged = false;
+
+/*
+ * Emit the SESSION log for stackItem. The caller must set appropriate
+ * memory context and back it after finished.
+ */
+static void
+emit_session_sql_log(AuditEventStackItem *stackItem, bool *valid_rules,
+				 const char *className)
+{
+	StringInfoData auditStr;
+	ListCell *cell;
+	int num = 0;
+
+	foreach(cell, ruleConfigs)
+	{
+		//AuditRuleConfig *rconf = lfirst(cell); /* used for format */
+
+		/* If this event does not match to current rule, ignore it */
+		if (!valid_rules[num])
+		{
+			num++;
+			continue;
+		}
+
+		initStringInfo(&auditStr);
+		append_valid_csv(&auditStr, stackItem->auditEvent.command);
+
+		appendStringInfoCharMacro(&auditStr, ',');
+		append_valid_csv(&auditStr, stackItem->auditEvent.objectType);
+
+		appendStringInfoCharMacro(&auditStr, ',');
+		append_valid_csv(&auditStr, stackItem->auditEvent.objectName);
+
+		if (!stackItem->auditEvent.statementLogged || !auditLogStatementOnce)
+		{
+			append_valid_csv(&auditStr, stackItem->auditEvent.commandText);
+
+			appendStringInfoCharMacro(&auditStr, ',');
+
+			/* Handle parameter logging, if enabled. */
+			if (auditLogParameter)
+			{
+				int paramIdx;
+				int numParams;
+				StringInfoData paramStrResult;
+				ParamListInfo paramList = stackItem->auditEvent.paramList;
+
+				numParams = paramList == NULL ? 0 : paramList->numParams;
+
+				/* Create the param substring */
+				initStringInfo(&paramStrResult);
+
+				/* Iterate through all params */
+				for (paramIdx = 0; paramList != NULL && paramIdx < numParams;
+					 paramIdx++)
+				{
+					ParamExternData *prm = &paramList->params[paramIdx];
+					Oid typeOutput;
+					bool typeIsVarLena;
+					char *paramStr;
+
+					/* Add a comma for each param */
+					if (paramIdx != 0)
+						appendStringInfoCharMacro(&paramStrResult, ',');
+
+					/* Skip if null or if oid is invalid */
+					if (prm->isnull || !OidIsValid(prm->ptype))
+						continue;
+
+					/* Output the string */
+					getTypeOutputInfo(prm->ptype, &typeOutput, &typeIsVarLena);
+					paramStr = OidOutputFunctionCall(typeOutput, prm->value);
+
+					append_valid_csv(&paramStrResult, paramStr);
+					pfree(paramStr);
+				}
+
+				if (numParams == 0)
+					appendStringInfoString(&auditStr, "<none>");
+				else
+					append_valid_csv(&auditStr, paramStrResult.data);
+			}
+			else
+				appendStringInfoString(&auditStr, "<not logged>");
+
+			stackItem->auditEvent.statementLogged = true;
+		}
+		else
+			/* we were asked to not log it */
+			appendStringInfoString(&auditStr,
+								   "<previously logged>,<previously logged>");
+
+		ereport(auditLogLevel,
+				(errmsg("AUDIT: SESSION," INT64_FORMAT "," INT64_FORMAT ",%s,%s",
+						stackItem->auditEvent.statementId,
+						stackItem->auditEvent.substatementId,
+						className,
+						auditStr.data),
+				 errhidestmt(true),
+				 errhidecontext(true)));
+
+		stackItem->auditEvent.logged = true;
+	}
+
+}
 
 /* Debug functio which will be removed */
 static void
@@ -431,6 +540,17 @@ log_audit_event(AuditEventStackItem *stackItem)
         stackItem->auditEvent.substatementId = ++substatementTotal;
     }
 
+	/*
+	 * If we are going to emit the SESSION log, granted is set false.
+	 * In this case, we emit the log according to defined rules
+	 */
+	if (stackItem->auditEvent.granted == false)
+	{
+		emit_session_sql_log(stackItem, valid_rules, className);
+		MemoryContextSwitchTo(contextOld);
+		return;
+	}
+	
     /*
      * Create the audit substring
      *
@@ -516,9 +636,7 @@ log_audit_event(AuditEventStackItem *stackItem)
      * pgaudit anyway.
      */
     ereport(auditLogLevel,
-            (errmsg("AUDIT: %s," INT64_FORMAT "," INT64_FORMAT ",%s,%s",
-                    stackItem->auditEvent.granted ?
-                    AUDIT_TYPE_OBJECT : AUDIT_TYPE_SESSION,
+            (errmsg("AUDIT: OBJECT," INT64_FORMAT "," INT64_FORMAT ",%s,%s",
                     stackItem->auditEvent.statementId,
                     stackItem->auditEvent.substatementId,
                     className,
