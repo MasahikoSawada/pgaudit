@@ -50,23 +50,6 @@ PG_FUNCTION_INFO_V1(pgaudit_ddl_command_end);
 PG_FUNCTION_INFO_V1(pgaudit_sql_drop);
 
 /*
- * Log Classes
- *
- * pgAudit categorizes actions into classes (eg: DDL, FUNCTION calls, READ
- * queries, WRITE queries).  A GUC is provided for the administrator to
- * configure which class (or classes) of actions to include in the
- * audit log.  We track the currently active set of classes using
- * auditLogBitmap.
- */
-
-
-/* GUC variable for pgaudit.log, which defines the classes to log. */
-char *auditLog = NULL;
-
-/* Bitmap of classes selected */
-static int auditLogBitmap = LOG_NONE;
-
-/*
  * GUC variable for pgaudit.config_file
  *
  * Administrators can specify the path to the configuration file.
@@ -1126,7 +1109,7 @@ pgaudit_ExecutorCheckPerms_hook(List *rangeTabls, bool abort)
     auditOid = get_role_oid(auditRole, true);
 
     /* Log DML if the audit role is valid or session logging is enabled */
-    if ((auditOid != InvalidOid || auditLogBitmap != 0) &&
+    if ((auditOid != InvalidOid) &&
         !IsAbortedTransactionBlockState())
         log_select_dml(auditOid, rangeTabls);
 
@@ -1227,7 +1210,7 @@ pgaudit_object_access_hook(ObjectAccessType access,
                             int subId,
                             void *arg)
 {
-    if (auditLogBitmap & LOG_FUNCTION && access == OAT_FUNCTION_EXECUTE &&
+    if (access == OAT_FUNCTION_EXECUTE &&
         auditEventStack && !IsAbortedTransactionBlockState())
         log_function_execute(objectId);
 
@@ -1255,10 +1238,6 @@ pgaudit_ddl_command_end(PG_FUNCTION_ARGS)
     const char *query;
     MemoryContext contextQuery;
     MemoryContext contextOld;
-
-    /* Continue only if session DDL logging is enabled */
-    if (~auditLogBitmap & LOG_DDL && ~auditLogBitmap & LOG_ROLE)
-        PG_RETURN_NULL();
 
     /* Be sure the module was loaded */
     if (!auditEventStack)
@@ -1367,9 +1346,6 @@ pgaudit_sql_drop(PG_FUNCTION_ARGS)
     const char *query;
     MemoryContext contextQuery;
     MemoryContext contextOld;
-
-    if (~auditLogBitmap & LOG_DDL)
-        PG_RETURN_NULL();
 
     /* Be sure the module was loaded */
     if (!auditEventStack)
