@@ -6,8 +6,6 @@
 #####################################################################
 # contrib/pg_audit/Makefile# contrib/pg_audit/Makefile
 
-LFLAGS = -i
-YFLAGS = -d
 MODULE_big = pgaudit
 OBJS = pgaudit.o config.o rule.o
 
