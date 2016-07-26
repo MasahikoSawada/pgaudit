@@ -2,12 +2,12 @@
  * rule.c
  *
  * Copyright (c) 2016, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ *
  */
 
 #include "postgres.h"
 #include "miscadmin.h"
 #include "libpq/auth.h"
-
 
 #include "config.h"
 
@@ -19,10 +19,10 @@ static bool apply_bitmap_rule(int value, AuditRule rule);
 
 /*
  * Check if this audit event should be logged by validating
- * configured rules. Return array of bool representing index of
- * rule that we should use for logging thie audit event. Return NULL
- * if any rules didnt' match this audit event which means we can skip
- * to log event.
+ * configured rules. Return true if this stackItem matched to
+ * any rule which means we should log this event, otherwise
+ * return false.  Also, we return array of bool that represent
+ * index of valid rule for this event.
  */
 bool
 apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)

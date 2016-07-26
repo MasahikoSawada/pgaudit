@@ -2,13 +2,9 @@
  * pgaudit_scan.l
  *
  * Copyright (c) 2016, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
- */
-
-/*
- * Token scanner called from pgaudit_parse.y parser
  *
  * IDENTIFICATION
- *           contrib/pgaudit/pgaudit_scan.l
+ *           pgaudit/pgaudit_scan.l
  */
 
 %{
@@ -100,6 +96,7 @@ void processAuditConfigFile(char* filename)
 		if (token == AUDIT_EOL)
 			continue;
 
+		/* Detected secion string */
 		if (token == AUDIT_SECTION_RULE ||
 			token == AUDIT_SECTION_OUTPUT ||
 			token == AUDIT_SECTION_OPTIONS)
@@ -109,10 +106,9 @@ void processAuditConfigFile(char* filename)
 
 			if (audit_parse_state == AUDIT_SECTION_RULE)
 			{
+				/* Allocate new ruleconfig and set template variables */
 				rconf = (AuditRuleConfig *) palloc(sizeof(AuditRuleConfig));
-				memcpy(rconf->rules,
-				       rules_template,
-				       sizeof(AuditRule) * AUDIT_NUM_RULES);
+				memcpy(rconf->rules, rules_template, sizeof(AuditRule) * AUDIT_NUM_RULES);
 
 				if (ruleConfigs == NULL)
 					ruleConfigs = list_make1(rconf);
@@ -131,7 +127,7 @@ void processAuditConfigFile(char* filename)
 			    (audit_parse_state == AUDIT_SECTION_OPTIONS && token == AUDIT_FIELD_OPTIONS) ||
 			    (audit_parse_state == AUDIT_SECTION_OUTPUT && token == AUDIT_FIELD_OUTPUT)))
 			{
-				fprintf(stderr, "section and field are mismatched.\n");
+				/* error */
 				break;
 			}
 
@@ -142,6 +138,7 @@ void processAuditConfigFile(char* filename)
 			token = yylex();
 			if (token != AUDIT_OP)
 			{
+				/* error */
 				fprintf(stderr, "Syntax error\n");
 				break;
 			}
@@ -150,16 +147,19 @@ void processAuditConfigFile(char* filename)
 			/* Get value */
 			token = yylex();
 			if (token == AUDIT_NAME ||
-				  token == AUDIT_INT ||
-				  token == AUDIT_BOOLEAN)
+				  token == AUDIT_INT)
 			{
 				value_name = audit_scanstr(yytext);
-				validate_settings(field_name, op_name, value_name,
-							rconf);
+				validate_settings(field_name, op_name, value_name, rconf);
+			}
+			else if (token == AUDIT_BOOLEAN)
+			{
+				value_name = pstrdup(yytext);
+				validate_settings(field_name, op_name, value_name, rconf);
 			}
 			else
 			{
-//				fprintf(stderr, "INVALID VALUE %s\n", yytext);
+				fprintf(stderr, "INVALID VALUE %s\n", yytext);
 				break;
 			}
 		}

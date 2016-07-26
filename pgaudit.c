@@ -8,7 +8,7 @@
  * Copyright (c) 2014-2015, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
- *          contrib/pgaudit/pgaudit.c
+ *          pgaudit/pgaudit.c
  *------------------------------------------------------------------------------
  */
 #include "postgres.h"
@@ -79,9 +79,6 @@ char *config_file = NULL;
 #define COMMAND_DELETE      "DELETE"
 #define COMMAND_EXECUTE     "EXECUTE"
 #define COMMAND_UNKNOWN     "UNKNOWN"
-
-
-
 
 AuditEventStackItem *auditEventStack = NULL;
 
@@ -401,7 +398,7 @@ log_audit_event(AuditEventStackItem *stackItem)
      * Only log the statement if:
      *
      * 1. If object was selected for audit logging (granted), or
-     * 2. The statement belongs to a class that is being logged
+     * 2. The statement matches to all rules of multiple rule sections.
      *
      * If neither of these is true, return.
      *----------
@@ -1485,8 +1482,9 @@ _PG_init(void)
 	outputConfig = (AuditOutputConfig *) malloc(sizeof(AuditOutputConfig));
 	ruleConfigs = NULL;
 
+	/* Parse configuration file specified by pgaudit.config_file */
 	processAuditConfigFile(config_file);
-	print_config();
+	print_config(); /* debug output */
 
 	MemoryContextSwitchTo(old_ctx);
 

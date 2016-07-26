@@ -2,11 +2,6 @@
  * config.c
  *
  * Copyright (c) 2016, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
- */
-
-/*
- * This function group is one that is called from
- * the action part of pgaudit configuration file parsing.
  *
  * IDENTIFICATION
  *           pgaudit/config.c
@@ -19,6 +14,7 @@
 
 #include "config.h"
 
+/* Definition for parsing configration file */
 enum
 {
 	AUDIT_NAME = 1,
@@ -35,6 +31,11 @@ enum
 	AUDIT_EOF = 13
 };
 
+/*
+ * The template definition for audit rule. Each rule section
+ * has this array of AuditRule and overwrite value to appropriate
+ * field.
+ */
 struct AuditRule rules_template[] =
 {
 	{"timestamp", NULL, false, 0, AUDIT_RULE_TYPE_TIMESTAMP},
@@ -93,12 +94,13 @@ bool auditLogStatementOnce = false;
  */
 char *auditRole = "";
 
+/* Global variable for output and rule sections */
 AuditOutputConfig *outputConfig;
 List	*ruleConfigs;
 
 static int	audit_parse_state = 0;
 
-/* Primiive function */
+/* Primiive functions */
 static bool	str_to_bool(const char *str);
 static bool op_to_bool(const char *str);
 static pg_time_t str_to_timestamp(const char *str);
@@ -146,6 +148,7 @@ static int
 objecttype_to_bitmap(const char *str)
 {
 	int object_type;
+
 	if (pg_strcasecmp(str, OBJECT_TYPE_TABLE) == 0)
 		object_type = LOG_OBJECT_TABLE;
 	else if (pg_strcasecmp(str, OBJECT_TYPE_INDEX) == 0)
@@ -277,7 +280,7 @@ assign_pgaudit_log_level(char *newVal)
 }
 
 /*
- * THis routine valudates the configuration using given informations;
+ * This routine valudates the configuration using given informations;
  * field, operation, value. We have three types of section output,
  * option and rule, and each section can hvae some field.
  */
@@ -438,15 +441,13 @@ validate_settings(char *field, char *op,char *value,
 							ListCell *ts_cell;
 							char *range_string = (char *)lfirst(cell);
 
+							/* The timestamp range should be separated by '-' */
 							if (!SplitIdentifierString(range_string, '-', &ts_list))
 							{
 								/* error */
 							}
 
-							/*
-							 * We expect that the format of each ts_cell is
-							 * 'HH:MM:SS'
-							 */
+							/* We expect that the format of each ts_cell is 'HH:MM:SS' */
 							foreach(ts_cell, ts_list)
 							{
 								pg_time_t ts = str_to_timestamp((char *)lfirst(ts_cell));
