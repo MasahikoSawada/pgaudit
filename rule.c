@@ -5,6 +5,9 @@
  */
 
 #include "postgres.h"
+#include "miscadmin.h"
+#include "libpq/auth.h"
+
 
 #include "config.h"
 
@@ -177,7 +180,8 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
  		AuditRuleConfig *rconf = (AuditRuleConfig *)lfirst(cell);
 		bool ret = false;
 
-		if (apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]))
+		if (apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]) &&
+			apply_one_rule(MyProcPort->database_name, rconf->rules[AUDIT_RULE_DATABASE]))
 		{
 			matched = true;
 			ret = true;

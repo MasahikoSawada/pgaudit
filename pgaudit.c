@@ -1109,7 +1109,7 @@ pgaudit_ExecutorCheckPerms_hook(List *rangeTabls, bool abort)
     auditOid = get_role_oid(auditRole, true);
 
     /* Log DML if the audit role is valid or session logging is enabled */
-    if ((auditOid != InvalidOid) &&
+    if ((auditOid != InvalidOid || ruleConfigs != NULL) &&
         !IsAbortedTransactionBlockState())
         log_select_dml(auditOid, rangeTabls);
 
