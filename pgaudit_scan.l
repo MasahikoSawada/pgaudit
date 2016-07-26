@@ -53,53 +53,16 @@ field_rule      format|timestamp|database|current_user|user|class|command_tag|ob
 
 '\n'	return AUDIT_EOL;
 
-{int}	{
-//fprintf(stderr, "INT : %s\n", yytext);
-return AUDIT_INT;
-}	
-{boolean} {
-return AUDIT_BOOLEAN;
-}
-{operator} {
-//fprintf(stderr, "operator : %s\n", yytext);
-return AUDIT_OP;
-}
-
-{field_output} {
-//fprintf(stderr, "field_output : %s\n", yytext);
-
-return AUDIT_FIELD_OUTPUT;
-}
-
-{field_options} {
-//fprintf(stderr, "fieldoptions : %s\n", yytext);
-return AUDIT_FIELD_OPTIONS;
-}
-
-{field_rule} {
-//fprintf(stderr, "field_rule : %s\n", yytext);
-return AUDIT_FIELD_RULE;
-}
-
-"[output]" {
-//fprintf(stderr, "output : %s\n", yytext);
-return AUDIT_SECTION_OUTPUT;
-}
-
-"[options]" {
-//fprintf(stderr, "options : %s\n", yytext);
-return AUDIT_SECTION_OPTIONS;
-}
-
-"[rule]" {
-//fprintf(stderr, "rule : %s\n", yytext);
-return AUDIT_SECTION_RULE;
-}
-
-{string} {
-//fprintf(stderr, "name : %s\n", yytext);
-return AUDIT_NAME;
-}
+{int}		return AUDIT_INT;
+{boolean}	return AUDIT_BOOLEAN;
+{operator}	return AUDIT_OP;
+{field_output}	return AUDIT_FIELD_OUTPUT;
+{field_options}	return AUDIT_FIELD_OPTIONS;
+{field_rule}	return AUDIT_FIELD_RULE;
+"[output]"	return AUDIT_SECTION_OUTPUT;
+"[options]"	return AUDIT_SECTION_OPTIONS;
+"[rule]"	return AUDIT_SECTION_RULE;
+{string}	return AUDIT_NAME;
 
 %%
 
@@ -138,8 +101,8 @@ void processAuditConfigFile(char* filename)
 			continue;
 
 		if (token == AUDIT_SECTION_RULE ||
-  		    token == AUDIT_SECTION_OUTPUT ||
-	  	    token == AUDIT_SECTION_OPTIONS)
+			token == AUDIT_SECTION_OUTPUT ||
+			token == AUDIT_SECTION_OPTIONS)
 		{
 			/* Set current state */
 			audit_parse_state = token;
@@ -184,7 +147,7 @@ void processAuditConfigFile(char* filename)
 			}
 			op_name = pstrdup(yytext);
 
-			/* Get value */	
+			/* Get value */
 			token = yylex();
 			if (token == AUDIT_NAME ||
 				  token == AUDIT_INT ||

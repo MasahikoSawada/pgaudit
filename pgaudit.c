@@ -1451,18 +1451,18 @@ _PG_init(void)
         NULL, NULL, NULL);
 
 		/* Define pgaudit.confg_file */
-		DefineCustomStringVariable(
-			"pgaudit.config_file",
-			"Specifies the file path name for pgaudit configuration.",
-			NULL,
-			&config_file,
-			"",
-			PGC_POSTMASTER,
-			GUC_NOT_IN_SAMPLE,
-			NULL, NULL, NULL);
-		
-    /*
-     * Install our hook functions after saving the existing pointers to
+	DefineCustomStringVariable(
+		"pgaudit.config_file",
+		"Specifies the file path name for pgaudit configuration.",
+		NULL,
+		&config_file,
+		"",
+		PGC_POSTMASTER,
+		GUC_NOT_IN_SAMPLE,
+		NULL, NULL, NULL);
+
+	/*
+	 * Install our hook functions after saving the existing pointers to
      * preserve the chains.
      */
     next_ExecutorStart_hook = ExecutorStart_hook;
@@ -1484,7 +1484,7 @@ _PG_init(void)
 	old_ctx = MemoryContextSwitchTo(TopMemoryContext);
 	outputConfig = (AuditOutputConfig *) malloc(sizeof(AuditOutputConfig));
 	ruleConfigs = NULL;
-	
+
 	processAuditConfigFile(config_file);
 	print_config();
 

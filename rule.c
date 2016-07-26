@@ -15,7 +15,7 @@ static bool apply_one_rule(void *value, AuditRule rule);
 static bool apply_string_rule(char *value, AuditRule rule);
 static bool apply_integer_rule(int value, AuditRule rule);
 static bool apply_timestamp_rule(AuditRule rule);
-static bool apply_bitmap_rule(int value, AuditRule rule); 
+static bool apply_bitmap_rule(int value, AuditRule rule);
 
 /*
  * Check if this audit event should be logged by validating
@@ -177,7 +177,7 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
 	 */
 	foreach(cell, ruleConfigs)
 	{
- 		AuditRuleConfig *rconf = (AuditRuleConfig *)lfirst(cell);
+		AuditRuleConfig *rconf = (AuditRuleConfig *)lfirst(cell);
 		bool ret = false;
 
 		if (apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]) &&
