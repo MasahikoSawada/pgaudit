@@ -82,9 +82,14 @@ char *config_file = NULL;
 
 AuditEventStackItem *auditEventStack = NULL;
 
+/* Function prototype for hook */
+static void pgaudit_emit_log_hook(ErrorData *edata);
+
 static void append_valid_csv(StringInfoData *buffer, const char *appendStr);
 static void emit_session_sql_log(AuditEventStackItem *stackItem, bool *valid_rules,
 								   const char *className);
+static void emit_session_event(ErrorData *edata);
+
 
 /*
  * pgAudit runs queries of its own when using the event trigger system.
@@ -102,6 +107,24 @@ static int64 substatementTotal = 0;
 static int64 stackTotal = 0;
 
 static bool statementLogged = false;
+
+static void
+pgaudit_emit_log_hook(ErrorData *edata)
+{
+	/* hook for emit_log_hook */
+	emit_session_event(edata);
+}
+
+/*
+ * Emit the SESSION log for event from emit_log_hook. This routine
+ * is used for logging of connection, disconnection, replication command
+ * etc
+ */
+static void
+emit_session_event(ErrorData *edata)
+{
+	/* log for connection, disconnection and so on */
+}
 
 /*
  * Emit the SESSION log for stackItem. The caller must set appropriate
@@ -1139,6 +1162,7 @@ static ExecutorCheckPerms_hook_type next_ExecutorCheckPerms_hook = NULL;
 static ProcessUtility_hook_type next_ProcessUtility_hook = NULL;
 static object_access_hook_type next_object_access_hook = NULL;
 static ExecutorStart_hook_type next_ExecutorStart_hook = NULL;
+static emit_log_hook_type next_emit_log_hook = NULL;
 
 /*
  * Hook ExecutorStart to get the query text and basic command type for queries
@@ -1591,6 +1615,9 @@ _PG_init(void)
 
     next_object_access_hook = object_access_hook;
     object_access_hook = pgaudit_object_access_hook;
+
+	next_emit_log_hook = emit_log_hook;
+	emit_log_hook = pgaudit_emit_log_hook;
 
 	/* Parse audit configuration */
 	if (config_file == NULL)
