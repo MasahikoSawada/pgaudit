@@ -95,7 +95,6 @@ typedef struct AuditRule
 	void *values;
 	bool eq;
 	int	nval;
-	int	bitmap;
 	int	type;
 } AuditRule;
 
