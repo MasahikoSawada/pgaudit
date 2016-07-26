@@ -231,15 +231,17 @@ apply_one_rule(void *value, AuditRule rule)
 	}
 	else if (isTimestampRule(rule))
 		return apply_timestamp_rule(rule);
-	else /* For bitmap type */
+	else if (isBitmapRule(rule))
 	{
 		int *val = (int *)value;
 		return apply_bitmap_rule(*val, rule);
 	}
+
+	return false;
 }
 
 /*
- * Check if given string value is listed in rule->values.
+ * Check if given string value is listed in rule.values.
  */
 static bool
 apply_string_rule(char *value, AuditRule rule)
@@ -251,6 +253,10 @@ apply_string_rule(char *value, AuditRule rule)
 	if (rule.values == NULL)
 		return true;
 
+	/*
+	 * Return true if rule.value has the string same as
+	 * value at least 1, otherwise return false.
+	 */
 	for (i = 0; i < rule.nval; i++)
 	{
 		if (pg_strcasecmp(value, string_list[i]) == 0)
