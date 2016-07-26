@@ -15,6 +15,8 @@ EXTENSION = pgaudit
 DATA = pgaudit--1.0.sql
 PGFILEDESC = "pgAudit - An audit logging extension for PostgreSQL"
 
+all: pgaudit.o
+
 config.o: pgaudit_scan.c
 
 REGRESS = pgaudit
