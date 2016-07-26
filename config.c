@@ -458,8 +458,10 @@ validate_settings(char *field, char *op,char *value,
 						rule->values = ts_values;
 						rule->eq = op_to_bool(op);
 					}
-				}
-			}
+				} /* found corresponding rule */
+
+				break;
+			} /* loop for rules_template */
 		}
 	}
 	else
