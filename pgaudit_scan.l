@@ -37,6 +37,7 @@ boolean		off|on|true|false|0|1
 op_eq		\=
 op_ne		\!=
 operator	{op_eq}|{op_ne}
+comment		^#.*
 
 field_output    logger|pathlog|ident|option|facility|priority|level|maxlength
 field_options   log_catalog|log_level|log_parameter|log_statement_once|role
@@ -46,9 +47,8 @@ field_rule      format|timestamp|database|current_user|user|class|command_tag|ob
 <<EOF>>         return AUDIT_EOF;
 
 {space}	{ /* ignore */ }
-
 '\n'	return AUDIT_EOL;
-
+{comment}	{ /*ignore */ }
 {int}		return AUDIT_INT;
 {boolean}	return AUDIT_BOOLEAN;
 {operator}	return AUDIT_OP;
