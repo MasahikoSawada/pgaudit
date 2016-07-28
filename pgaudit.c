@@ -635,7 +635,7 @@ log_audit_event(AuditEventStackItem *stackItem)
 		MemoryContextSwitchTo(contextOld);
 		return;
 	}
-	
+
     /*
      * Create the audit substring
      *
