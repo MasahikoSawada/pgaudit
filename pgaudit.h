@@ -23,7 +23,6 @@
 #include <syslog.h>
 #endif
 
-
 /*
  * An AuditEvent represents an operation that potentially affects a single
  * object.  If a statement affects multiple objects then multiple AuditEvents
