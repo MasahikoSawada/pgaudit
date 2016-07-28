@@ -170,6 +170,7 @@ classify_edata_class(ErrorData *edata, int *class)
 	char *className = NULL;
 	*class = LOG_NONE;
 
+	/* Connection receive, authenticate and disconnection */
 	if (strstr(edata->message, AUDIT_MSG_CONNECTION_RECV) ||
 		strstr(edata->message, AUDIT_MSG_CONNECTION_AUTH) ||
 		strstr(edata->message, AUDIT_MSG_DISCONNECTION))
@@ -177,6 +178,7 @@ classify_edata_class(ErrorData *edata, int *class)
 		*class = LOG_CONNECT;
 		className = CLASS_CONNECT;
 	}
+	/* Shutdown, interrupt, ready to accept connection and new timeline ID */
 	else if (strstr(edata->message, AUDIT_MSG_SHUTDOWN) ||
 			 strstr(edata->message, AUDIT_MSG_SHUTDOWN_IN_RECOV) ||
 			 strstr(edata->message, AUDIT_MSG_INTERRUPT) ||
@@ -186,10 +188,20 @@ classify_edata_class(ErrorData *edata, int *class)
 		*class = LOG_SYSTEM;
 		className = CLASS_SYSTEM;
 	}
+	/* Replication command for basebackup */
 	else if (strstr(edata->message, AUDIT_MSG_REPLICATION))
 	{
 		*class = LOG_BACKUP;
 		className = CLASS_SYSTEM;
+	}
+	/*
+	 * SQL error having '00' prefix error ERRCODE_SUCCESSFUL_COMPLETION
+	 * meaning SQL error like syntax error
+	 */
+	else if (strncmp(unpack_sql_state(edata->sqlerrcode), "00", 2))
+	{
+		*class = LOG_ERROR;
+		className = CLASS_ERROR;
 	}
 
 	return className;

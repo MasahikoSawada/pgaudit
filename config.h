@@ -18,39 +18,6 @@
 #define MAX_NAME_LEN 8192
 
 /*
- * String constants for log classes - used when processing tokens in the
- * pgaudit.log GUC.
- */
-#define CLASS_BACKUP	"BACKUP"
-#define CLASS_CONNECT	"CONNECT"
-#define CLASS_DDL       "DDL"
-#define CLASS_ERROR		"ERROR"
-#define CLASS_FUNCTION  "FUNCTION"
-#define CLASS_MISC      "MISC"
-#define CLASS_READ      "READ"
-#define CLASS_ROLE      "ROLE"
-#define CLASS_WRITE     "WRITE"
-#define	CLASS_SYSTEM	"SYSTEM"
-
-#define CLASS_NONE      "NONE"
-#define CLASS_ALL       "ALL"
-
-/* Defines the classes for filtering operation by class field */
-#define LOG_BACKUP		(1 << 0)	/* Backbackup through replication */
-#define LOG_CONNECT		(1 << 1)	/* connection, disconnection */
-#define LOG_DDL         (1 << 2)    /* CREATE/DROP/ALTER objects */
-#define LOG_ERROR		(1 << 3)	/* General ERROR message */
-#define LOG_FUNCTION    (1 << 4)    /* Functions and DO blocks */
-#define LOG_MISC        (1 << 5)    /* Statements not covered */
-#define LOG_READ        (1 << 6)    /* SELECTs */
-#define LOG_ROLE        (1 << 7)    /* GRANT/REVOKE, CREATE/ALTER/DROP ROLE */
-#define LOG_WRITE       (1 << 8)    /* INSERT, UPDATE, DELETE, TRUNCATE */
-#define LOG_SYSTEM		(1 << 9)	/* Server startup, end, interrupt */
-
-#define LOG_NONE        0               /* nothing */
-#define LOG_ALL         (0xFFFFFFFF)    /* All */
-
-/*
  * Object type, used for SELECT/DML statements and function calls.
  *
  * For relation objects, this is essentially relkind (though we do not have
