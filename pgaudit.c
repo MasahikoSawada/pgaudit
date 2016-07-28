@@ -80,6 +80,32 @@ char *config_file = NULL;
 #define COMMAND_EXECUTE     "EXECUTE"
 #define COMMAND_UNKNOWN     "UNKNOWN"
 
+/*
+ * AUDIT_ELOG() is for audit logging differ to ereport. Now that we emit the audit
+ * log in  pgaudit_emit_log_hook, it's possible to emit the log recusively. To
+ * prevent it, we introduece a variable emitAuditLogCalled, which is 0 by default.
+ * > 1 means that we alreadby emited some logs, so we don't need to emit log anymore.
+ *
+ * In case where we want to use elog/ereport, we should use AUDIT_ELOG/EREPORT instead
+ *  which easily avoid to emit log recusively.
+ */
+static int emitAuditLogCalled = 0;
+#define START_AUDIT_LOGGING()	(emitAuditLogCalled++)
+#define END_AUDIT_LOGGING() 	(emitAuditLogCalled--)
+#define AUDIT_ELOG(level, ...) \
+	do { \
+		START_AUDIT_LOGGING(); \
+		elog((level), __VA_ARGS__); \
+		END_AUDIT_LOGGING(); \
+		emitAuditLogCalled--; \
+	} while (0)
+#define AUDIT_EREPORT(level, ...) \
+	do { \
+		START_AUDIT_LOGGING(); \
+		ereport((level), __VA_ARGS__); \
+		END_AUDIT_LOGGING(); \
+	} while (0)
+
 AuditEventStackItem *auditEventStack = NULL;
 
 /* Function prototype for hook */
@@ -88,8 +114,15 @@ static void pgaudit_emit_log_hook(ErrorData *edata);
 static void append_valid_csv(StringInfoData *buffer, const char *appendStr);
 static void emit_session_sql_log(AuditEventStackItem *stackItem, bool *valid_rules,
 								   const char *className);
-static void emit_session_event(ErrorData *edata);
 
+/*
+ * Hook functions
+ */
+static ExecutorCheckPerms_hook_type next_ExecutorCheckPerms_hook = NULL;
+static ProcessUtility_hook_type next_ProcessUtility_hook = NULL;
+static object_access_hook_type next_object_access_hook = NULL;
+static ExecutorStart_hook_type next_ExecutorStart_hook = NULL;
+static emit_log_hook_type next_emit_log_hook = NULL;
 
 /*
  * pgAudit runs queries of its own when using the event trigger system.
@@ -108,22 +141,47 @@ static int64 stackTotal = 0;
 
 static bool statementLogged = false;
 
+/*
+ * Emit the SESSION log for event from emit_log_hook. This routine is
+ * used for logging of connection, disconnection, replication command etc.
+ */
 static void
 pgaudit_emit_log_hook(ErrorData *edata)
 {
-	/* hook for emit_log_hook */
-	emit_session_event(edata);
-}
+	int class;
+	char *className = NULL;
+	bool *valid_rules = palloc(sizeof(bool) * list_length(ruleConfigs));
 
-/*
- * Emit the SESSION log for event from emit_log_hook. This routine
- * is used for logging of connection, disconnection, replication command
- * etc
- */
-static void
-emit_session_event(ErrorData *edata)
-{
-	/* log for connection, disconnection and so on */
+	if (emitAuditLogCalled == 0)
+	{
+		/* Get class and className using edata */
+		className = classify_edata_class(edata, &class);
+
+		/* If we are not interested in this message, skip routine */
+		if (className != NULL)
+		{
+			/*
+			 * Only log the statement if the edata matches to all rules of
+			 * multiple rule secion.
+			 */
+			if (!apply_all_rules(NULL, edata, class, className, valid_rules))
+				return;
+
+			/*
+			 * XXX : We should separate function for emitting log to common
+			 * function with log_audit_event.
+			 */
+			AUDIT_EREPORT(auditLogLevel,
+					(errmsg("AUDIT: SESSION,%s,%s",
+							className,
+							edata->message),
+					 errhidestmt(true),
+					 errhidecontext(true)));
+		}
+	}
+
+	if (next_emit_log_hook)
+		(*next_emit_log_hook) (edata);
 }
 
 /*
@@ -132,7 +190,7 @@ emit_session_event(ErrorData *edata)
  */
 static void
 emit_session_sql_log(AuditEventStackItem *stackItem, bool *valid_rules,
-				 const char *className)
+					 const char *className)
 {
 	StringInfoData auditStr;
 	ListCell *cell;
@@ -515,7 +573,8 @@ static void
 log_audit_event(AuditEventStackItem *stackItem)
 {
     /* By default, put everything in the MISC class. */
-    const char *className = CLASS_MISC;
+    char *className = CLASS_MISC;
+	int class;
     MemoryContext contextOld;
     StringInfoData auditStr;
 	bool *valid_rules;
@@ -525,6 +584,9 @@ log_audit_event(AuditEventStackItem *stackItem)
         return;
 
 	valid_rules = palloc(sizeof(bool) * list_length(ruleConfigs));
+
+	/* Get class and className using stackItem */
+	className = classify_statement_class(stackItem, &class);
 
 	/*----------
      * Only log the statement if:
@@ -540,7 +602,7 @@ log_audit_event(AuditEventStackItem *stackItem)
 	 * any rules we defined. Return from here if not matched to any rules.
 	 */
 	if (!stackItem->auditEvent.granted &&
-		!apply_all_rules(stackItem, valid_rules))
+		!apply_all_rules(stackItem, NULL, class, className, valid_rules))
 		return ;
 
     /*
@@ -573,7 +635,7 @@ log_audit_event(AuditEventStackItem *stackItem)
 		MemoryContextSwitchTo(contextOld);
 		return;
 	}
-	
+
     /*
      * Create the audit substring
      *
@@ -1155,14 +1217,6 @@ log_function_execute(Oid objectId)
     stack_pop(stackItem->stackId);
 }
 
-/*
- * Hook functions
- */
-static ExecutorCheckPerms_hook_type next_ExecutorCheckPerms_hook = NULL;
-static ProcessUtility_hook_type next_ProcessUtility_hook = NULL;
-static object_access_hook_type next_object_access_hook = NULL;
-static ExecutorStart_hook_type next_ExecutorStart_hook = NULL;
-static emit_log_hook_type next_emit_log_hook = NULL;
 
 /*
  * Hook ExecutorStart to get the query text and basic command type for queries

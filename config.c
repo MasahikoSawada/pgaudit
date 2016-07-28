@@ -121,7 +121,13 @@ class_to_bitmap(const char *str)
 {
 	int class;
 
-	if (pg_strcasecmp(str, CLASS_NONE) == 0)
+	if (pg_strcasecmp(str, CLASS_BACKUP) == 0)
+		class = LOG_BACKUP;
+	else if (pg_strcasecmp(str, CLASS_CONNECT) == 0)
+		class = LOG_CONNECT;
+	else if (pg_strcasecmp(str, CLASS_ERROR) == 0)
+		class = LOG_ERROR;
+	else if (pg_strcasecmp(str, CLASS_NONE) == 0)
 		class = LOG_NONE;
 	else if (pg_strcasecmp(str, CLASS_ALL) == 0)
 		class = LOG_ALL;
@@ -137,6 +143,8 @@ class_to_bitmap(const char *str)
 		class = LOG_ROLE;
 	else if (pg_strcasecmp(str, CLASS_WRITE) == 0)
 		class = LOG_WRITE;
+	else if (pg_strcasecmp(str, CLASS_SYSTEM) == 0)
+		class = LOG_SYSTEM;
 
 	return class;
 }
@@ -295,8 +303,7 @@ validate_settings(char *field, char *op,char *value,
 			outputConfig->logger = value;
 		else if ((strcmp(field, "level") == 0))
 		{
-			auditLogLevelString = value;
-			assign_pgaudit_log_level(auditLogLevelString);
+			outputConfig->level = value;
 		}
 		else if ((strcmp(field, "pathlog") == 0))
 			outputConfig->pathlog = value;
@@ -320,6 +327,12 @@ validate_settings(char *field, char *op,char *value,
 			auditLogParameter = str_to_bool(value);
 		else if ((strcmp(field, "log_statement_once") == 0))
 			auditLogStatementOnce = str_to_bool(value);
+		else if ((strcmp(field, "log_level") == 0))
+		{
+			auditLogLevelString = value;
+			assign_pgaudit_log_level(auditLogLevelString);
+		}
+
 	}
 	/* Validation for rule section */
 	else if (audit_parse_state == AUDIT_SECTION_RULE)
@@ -330,7 +343,6 @@ validate_settings(char *field, char *op,char *value,
 			rconf->format = value;
 		else
 		{
-			pg_usleep(1);
 			/*
 			 * THe rule section have their rules as an array. We
 			 * validate it to appropriate element.

@@ -18,31 +18,6 @@
 #define MAX_NAME_LEN 8192
 
 /*
- * String constants for log classes - used when processing tokens in the
- * pgaudit.log GUC.
- */
-#define CLASS_DDL       "DDL"
-#define CLASS_FUNCTION  "FUNCTION"
-#define CLASS_MISC      "MISC"
-#define CLASS_READ      "READ"
-#define CLASS_ROLE      "ROLE"
-#define CLASS_WRITE     "WRITE"
-
-#define CLASS_NONE      "NONE"
-#define CLASS_ALL       "ALL"
-
-/* Defines the classes for filtering operation by class field */
-#define LOG_DDL         (1 << 0)    /* CREATE/DROP/ALTER objects */
-#define LOG_FUNCTION    (1 << 1)    /* Functions and DO blocks */
-#define LOG_MISC        (1 << 2)    /* Statements not covered */
-#define LOG_READ        (1 << 3)    /* SELECTs */
-#define LOG_ROLE        (1 << 4)    /* GRANT/REVOKE, CREATE/ALTER/DROP ROLE */
-#define LOG_WRITE       (1 << 5)    /* INSERT, UPDATE, DELETE, TRUNCATE */
-
-#define LOG_NONE        0               /* nothing */
-#define LOG_ALL         (0xFFFFFFFF)    /* All */
-
-/*
  * Object type, used for SELECT/DML statements and function calls.
  *
  * For relation objects, this is essentially relkind (though we do not have
@@ -57,7 +32,7 @@
 #define OBJECT_TYPE_TABLE           "TABLE"
 #define OBJECT_TYPE_INDEX           "INDEX"
 #define OBJECT_TYPE_SEQUENCE        "SEQUENCE"
-#define OBJECT_TYPE_TOASTVALUE      "TOAST TABLE"
+#define OBJECT_TYPE_TOASTVALUE      "TOAST VALUE"
 #define OBJECT_TYPE_VIEW            "VIEW"
 #define OBJECT_TYPE_MATVIEW         "MATERIALIZED VIEW"
 #define OBJECT_TYPE_COMPOSITE_TYPE  "COMPOSITE TYPE"

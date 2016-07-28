@@ -17,38 +17,27 @@ static bool apply_integer_rule(int value, AuditRule rule);
 static bool apply_timestamp_rule(AuditRule rule);
 static bool apply_bitmap_rule(int value, AuditRule rule);
 
-/*
- * Check if this audit event should be logged by validating
- * configured rules. Return true if this stackItem matched to
- * any rule which means we should log this event, otherwise
- * return false.  Also, we return array of bool that represent
- * index of valid rule for this event.
- */
-bool
-apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
+/* Classify the statement using log stmt level and the command tag */
+char *
+classify_statement_class(AuditEventStackItem *stackItem, int *class)
 {
-    /* By default, put everything in the MISC class. */
-    int class = LOG_MISC;
-    const char *className = CLASS_MISC;
+	/* By default, put everything in the MISC class. */
+	char *className = CLASS_MISC;
+	*class = LOG_MISC;
 
-	ListCell *cell;
-	int index = 0;
-	bool matched = false;
-
-    /* Classify the statement using log stmt level and the command tag */
     switch (stackItem->auditEvent.logStmtLevel)
     {
             /* All mods go in WRITE class, except EXECUTE */
         case LOGSTMT_MOD:
             className = CLASS_WRITE;
-            class = LOG_WRITE;
+            *class = LOG_WRITE;
 
             switch (stackItem->auditEvent.commandTag)
             {
                     /* Currently, only EXECUTE is different */
                 case T_ExecuteStmt:
                     className = CLASS_MISC;
-                    class = LOG_MISC;
+                    *class = LOG_MISC;
                     break;
                 default:
                     break;
@@ -58,7 +47,7 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
             /* These are DDL, unless they are ROLE */
         case LOGSTMT_DDL:
             className = CLASS_DDL;
-            class = LOG_DDL;
+            *class = LOG_DDL;
 
             /* Identify role statements */
             switch (stackItem->auditEvent.commandTag)
@@ -118,7 +107,7 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
                 case T_AlterRoleSetStmt:
                 case T_AlterDefaultPrivilegesStmt:
                     className = CLASS_ROLE;
-                    class = LOG_ROLE;
+                    *class = LOG_ROLE;
                     break;
 
                     /*
@@ -134,7 +123,7 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
                                       COMMAND_DROP_ROLE) == 0)
                     {
                         className = CLASS_ROLE;
-                        class = LOG_ROLE;
+                        *class = LOG_ROLE;
                     }
                     break;
 
@@ -153,13 +142,13 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
                 case T_PrepareStmt:
                 case T_PlannedStmt:
                     className = CLASS_READ;
-                    class = LOG_READ;
+                    *class = LOG_READ;
                     break;
 
                     /* FUNCTION statements */
                 case T_DoStmt:
                     className = CLASS_FUNCTION;
-                    class = LOG_FUNCTION;
+                    *class = LOG_FUNCTION;
                     break;
 
                 default:
@@ -171,9 +160,92 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
             break;
     }
 
+	return className;
+}
+
+/* Classify the edata using log message */
+char *
+classify_edata_class(ErrorData *edata, int *class)
+{
+	char *className = NULL;
+	*class = LOG_NONE;
+
+	/* Connection receive, authenticate and disconnection */
+	if (strstr(edata->message, AUDIT_MSG_CONNECTION_RECV) ||
+		strstr(edata->message, AUDIT_MSG_CONNECTION_AUTH) ||
+		strstr(edata->message, AUDIT_MSG_DISCONNECTION))
+	{
+		*class = LOG_CONNECT;
+		className = CLASS_CONNECT;
+	}
+	/* Shutdown, interrupt, ready to accept connection and new timeline ID */
+	else if (strstr(edata->message, AUDIT_MSG_SHUTDOWN) ||
+			 strstr(edata->message, AUDIT_MSG_SHUTDOWN_IN_RECOV) ||
+			 strstr(edata->message, AUDIT_MSG_INTERRUPT) ||
+			 strstr(edata->message, AUDIT_MSG_CONNECTION_READY) ||
+			 strstr(edata->message, AUDIT_MSG_NEW_TLID))
+	{
+		*class = LOG_SYSTEM;
+		className = CLASS_SYSTEM;
+	}
+	/* Replication command for basebackup */
+	else if (strstr(edata->message, AUDIT_MSG_REPLICATION))
+	{
+		*class = LOG_BACKUP;
+		className = CLASS_SYSTEM;
+	}
+	/*
+	 * SQL error having '00' prefix error ERRCODE_SUCCESSFUL_COMPLETION
+	 * meaning SQL error like syntax error
+	 */
+	else if (strncmp(unpack_sql_state(edata->sqlerrcode), "00", 2))
+	{
+		*class = LOG_ERROR;
+		className = CLASS_ERROR;
+	}
+
+	return className;
+}
+
+/*
+ * Check if this audit event should be logged by validating
+ * configured rules. Return true if this stackItem matched to
+ * any rule which means we should log this event, otherwise
+ * return false.  Also, we return array of bool that represent
+ * index of valid rule for this event.
+ *
+ * We can fetch the information used by applying rule from
+ * stackItem, MyProcPort and other except for class and className.
+ *
+ * Note that we can use either *stackItem or *edata. If one is
+ * valid, another is NULL.
+ */
+bool
+apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
+				int class, char *className, bool *valid_rules)
+{
+	ListCell *cell;
+	int index = 0;
+	bool matched = false;
+
+	char *database_name = NULL;
+
+	if (stackItem != NULL)
+	{
+		/* XXX : Prepare information for session "statement" logging */
+		database_name = MyProcPort->database_name;
+	}
+	else
+	{
+		/* XXX : prepare information for session "edata" logging */
+	}
+
 	/*
 	 * Validate each rule to this audit event and set true
 	 * corresponding index of rule if rules did match.
+	 *
+	 * XXX : We only support 'database' rule so far. The apply_one_rule
+	 * for other rules always return true.
 	 */
 	foreach(cell, ruleConfigs)
 	{
@@ -181,7 +253,7 @@ apply_all_rules(AuditEventStackItem *stackItem, bool *valid_rules)
 		bool ret = false;
 
 		if (apply_one_rule(NULL, rconf->rules[AUDIT_RULE_TIMESTAMP]) &&
-			apply_one_rule(MyProcPort->database_name, rconf->rules[AUDIT_RULE_DATABASE]) &&
+			apply_one_rule(database_name, rconf->rules[AUDIT_RULE_DATABASE]) &&
 			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_CURRENT_USER]) &&
 			apply_one_rule(NULL, rconf->rules[AUDIT_RULE_USER]) &&
 			apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]) &&
@@ -266,6 +338,7 @@ apply_string_rule(char *value, AuditRule rule)
 static bool
 apply_integer_rule(int value, AuditRule rule)
 {
+	/* XXX : we should complete this function */
 	return true;
 }
 
@@ -275,6 +348,7 @@ apply_integer_rule(int value, AuditRule rule)
 static bool
 apply_timestamp_rule(AuditRule rule)
 {
+	/* XXX : we should complete this function */
 	return true;
 }
 
@@ -284,5 +358,6 @@ apply_timestamp_rule(AuditRule rule)
 static bool
 apply_bitmap_rule(int value, AuditRule rule)
 {
+	/* XXX : we should complete this function */
 	return true;
 }
