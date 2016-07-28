@@ -303,8 +303,7 @@ validate_settings(char *field, char *op,char *value,
 			outputConfig->logger = value;
 		else if ((strcmp(field, "level") == 0))
 		{
-			auditLogLevelString = value;
-			assign_pgaudit_log_level(auditLogLevelString);
+			outputConfig->level = value;
 		}
 		else if ((strcmp(field, "pathlog") == 0))
 			outputConfig->pathlog = value;
@@ -328,6 +327,12 @@ validate_settings(char *field, char *op,char *value,
 			auditLogParameter = str_to_bool(value);
 		else if ((strcmp(field, "log_statement_once") == 0))
 			auditLogStatementOnce = str_to_bool(value);
+		else if ((strcmp(field, "log_level") == 0))
+		{
+			auditLogLevelString = value;
+			assign_pgaudit_log_level(auditLogLevelString);
+		}
+
 	}
 	/* Validation for rule section */
 	else if (audit_parse_state == AUDIT_SECTION_RULE)
