@@ -383,6 +383,7 @@ validate_settings(char *field, char *op,char *value,
 
 					list_len = list_length(value_list);
 
+					/* STRING rule type */
 					if (rule->type == AUDIT_RULE_TYPE_STRING)
 					{
 						char **str_values = palloc(sizeof(char *) * list_len);
@@ -408,6 +409,7 @@ validate_settings(char *field, char *op,char *value,
 						rule->values = str_values;
 						rule->eq = op_to_bool(op);
 					}
+					/* BITMAP rule type */
 					else if (rule->type == AUDIT_RULE_TYPE_BITMAP)
 					{
 						int *bitmap = (int *) palloc(sizeof(int));
@@ -439,6 +441,7 @@ validate_settings(char *field, char *op,char *value,
 						rule->values = bitmap;
 						rule->eq = op_to_bool(op);
 					}
+					/* TIMESTAMP rule type */
 					else if (rule->type == AUDIT_RULE_TYPE_TIMESTAMP)
 					{
 						pg_time_t *ts_values = palloc(sizeof(pg_time_t) * list_len * 2);
@@ -472,7 +475,10 @@ validate_settings(char *field, char *op,char *value,
 						rule->values = ts_values;
 						rule->eq = op_to_bool(op);
 					}
-
+					else
+						ereport(ERROR,
+								(errcode(ERRCODE_WRONG_OBJECT_TYPE),
+								 errmsg("invalid rule type \"%d\"", rule->type)));
 					break;
 				} /* found corresponding rule */
 			} /* loop for rules_template */

@@ -445,6 +445,7 @@ print_config(void)
 			if (rule.values == NULL)
 				continue;
 
+			/* String rule */
 			if (isStringRule(rule))
 			{
 				int num = rule.nval;
@@ -459,6 +460,7 @@ print_config(void)
 											   val)));
 				}
 			}
+			/* Bitmap rule */
 			else if (isBitmapRule(rule))
 			{
 				int val = *((int *)rule.values);
@@ -468,7 +470,8 @@ print_config(void)
 						rule.eq ? "=" : "!=",
 										   val)));
 			}
-			else
+			/* Timestamp rule */
+			else if (isTimestampRule(rule))
 			{
 				int num = rule.nval;
 				int i;
