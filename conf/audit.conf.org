@@ -35,3 +35,8 @@ application_name = 'appname1'
 object_name = 'public.appname2'
 class = 'ERROR'
 application_name = 'appname2'
+
+[rule] # test for audit role
+database = 'bar'
+audit_role = 'audit_role'
+class = 'DDL, READ'

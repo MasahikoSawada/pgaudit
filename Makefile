@@ -30,7 +30,8 @@ endif
 
 # Regression test for all of rules.
 # XXX : we must add existing 'pgaudit' regression test.
-REGRESSCHECKS=init timestamp database object_type class application_name
+REGRESSCHECKS=init timestamp database object_type class application_name \
+	audit_role
 
 pre_installcheck:
 	/bin/sh conf/prepare_config_file.sh
@@ -39,4 +40,5 @@ installcheck: pre_installcheck
 	$(pg_regress_installcheck) \
 		--temp-config=./conf/postgresql.conf \
 		--temp-instance=./tmp_check \
+		--user=postgres
 		$(REGRESSCHECKS)

@@ -233,6 +233,7 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 	char *object_name = NULL;
 	char *appname = NULL;
 	char *remote_host = NULL;
+	char *user_name = NULL;
 	int	object_type = 0;
 	pg_time_t audit_ts_of_day;
 
@@ -242,6 +243,9 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 
 		/* database name */
 		database_name = MyProcPort->database_name;
+
+		/* user name */
+		user_name = MyProcPort->user_name;
 
 		/* object name */
 		object_name = (stackItem->auditEvent.objectName == NULL) ?
@@ -268,6 +272,10 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 		/* database name */
 		if (MyProcPort != NULL && MyProcPort->database_name != NULL)
 			database_name = MyProcPort->database_name;
+
+		/* user name */
+		if (MyProcPort != NULL && MyProcPort->user_name != NULL)
+			user_name = MyProcPort->user_name;
 
 		/* timestamp  */
 		audit_ts_of_day = auditTimestampOfDay;
@@ -298,7 +306,7 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 			 */
 			if (apply_one_rule(&audit_ts_of_day, rconf->rules[AUDIT_RULE_TIMESTAMP]) &&
 				apply_one_rule(database_name, rconf->rules[AUDIT_RULE_DATABASE]) &&
-				apply_one_rule(NULL, rconf->rules[AUDIT_RULE_AUDIT_ROLE]) &&
+				apply_one_rule(user_name, rconf->rules[AUDIT_RULE_AUDIT_ROLE]) &&
 				apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]) &&
 				//apply_one_rule(NULL, rconf->rules[AUDIT_RULE_COMMAND_TAG]) &&
 				apply_one_rule(&object_type, rconf->rules[AUDIT_RULE_OBJECT_TYPE]) &&
@@ -322,7 +330,7 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 			 */
 			if (apply_one_rule(&audit_ts_of_day, rconf->rules[AUDIT_RULE_TIMESTAMP]) &&
 				apply_one_rule(database_name, rconf->rules[AUDIT_RULE_DATABASE]) &&
-				apply_one_rule(NULL, rconf->rules[AUDIT_RULE_AUDIT_ROLE]) &&
+				apply_one_rule(user_name, rconf->rules[AUDIT_RULE_AUDIT_ROLE]) &&
 				apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]) &&
 				//apply_one_rule(NULL, rconf->rules[AUDIT_RULE_COMMAND_TAG]) &&
 				apply_one_rule(appname, rconf->rules[AUDIT_RULE_APPLICATION_NAME]) &&
