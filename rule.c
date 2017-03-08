@@ -195,7 +195,7 @@ classify_edata_class(ErrorData *edata, int *class)
 	else if (strstr(edata->message, AUDIT_MSG_REPLICATION))
 	{
 		*class = LOG_BACKUP;
-		className = CLASS_SYSTEM;
+		className = CLASS_BACKUP;
 	}
 	/*
 	 * SQL error having '00' prefix error ERRCODE_SUCCESSFUL_COMPLETION
