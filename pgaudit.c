@@ -88,32 +88,6 @@ char *config_file = NULL;
 #define COMMAND_EXECUTE     "EXECUTE"
 #define COMMAND_UNKNOWN     "UNKNOWN"
 
-/*
- * AUDIT_ELOG() is for audit logging differ to ereport. Now that we emit the audit
- * log in  pgaudit_emit_log_hook, it's possible to emit the log recusively. To
- * prevent it, we introduece a variable emitAuditLogCalled, which is 0 by default.
- * > 1 means that we alreadby emited some logs, so we don't need to emit log anymore.
- *
- * In case where we want to use elog/ereport, we should use AUDIT_ELOG/EREPORT instead
- * which easily avoid to emit log recusively.
- */
-static int emitAuditLogCalled = 0;
-#define START_AUDIT_LOGGING()	(emitAuditLogCalled++)
-#define END_AUDIT_LOGGING() 	(emitAuditLogCalled--)
-#define AUDIT_ELOG(level, ...) \
-	do { \
-		START_AUDIT_LOGGING(); \
-		elog((level), __VA_ARGS__); \
-		END_AUDIT_LOGGING(); \
-		emitAuditLogCalled--; \
-	} while (0)
-#define AUDIT_EREPORT(level, ...) \
-	do { \
-		START_AUDIT_LOGGING(); \
-		ereport((level), __VA_ARGS__); \
-		END_AUDIT_LOGGING(); \
-	} while (0)
-
 AuditEventStackItem *auditEventStack = NULL;
 
 /* Function prototype for hook */

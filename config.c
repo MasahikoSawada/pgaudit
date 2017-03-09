@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 
 #include "config.h"
+#include "pgaudit.h"
 
 /* Definition for parsing configration file */
 enum
@@ -405,9 +406,25 @@ validate_settings(char *field, char *op,char *value,
 					/* STRING rule type */
 					if (rule->type == AUDIT_RULE_TYPE_STRING)
 					{
-						char **str_values = palloc(sizeof(char *) * list_len);
+						char **str_values;
 						int i;
 
+						/* Check duplicate setting */
+						if (rule->nval > 0)
+						{
+							AUDIT_ELOG(LOG,
+									   "detect duplicate field setting \"%s\"in rule section, overwritten by \"%s\"",
+									   field, value);
+
+							/* Reset previous setting */
+							for (i = 0; i < rule->nval; i++)
+								pfree(((char **)(rule->values))[i]);
+							pfree(rule->values);
+							rule->nval = 0;
+						}
+
+						/* initialize */
+						str_values = palloc(sizeof(char *) * list_len);
 						for (i = 0; i < list_len; i++)
 							str_values[i] = palloc(sizeof(char) * MAX_NAME_LEN);
 
@@ -431,9 +448,22 @@ validate_settings(char *field, char *op,char *value,
 					/* BITMAP rule type */
 					else if (rule->type == AUDIT_RULE_TYPE_BITMAP)
 					{
-						int *bitmap = (int *) palloc(sizeof(int));
-						*bitmap = 0;
+						int *bitmap;
 
+						/* Check duplicate setting */
+						if (rule->nval > 0)
+						{
+							AUDIT_ELOG(LOG,
+									   "detect duplicate field setting \"%s\"in rule section, overwritten by \"%s\"",
+									   field, value);
+
+							/* Reset previous setting */
+							pfree(rule->values);
+							rule->nval = 0;
+						}
+
+						bitmap = (int *) palloc(sizeof(int));
+						*bitmap = 0;
 						/*
 						 * We expect that the format of string type value
 						 * is 'write, read, ...'. Compute bitmap for filtering.
@@ -463,7 +493,21 @@ validate_settings(char *field, char *op,char *value,
 					/* TIMESTAMP rule type */
 					else if (rule->type == AUDIT_RULE_TYPE_TIMESTAMP)
 					{
-						pg_time_t *ts_values = palloc(sizeof(pg_time_t) * list_len * 2);
+						pg_time_t *ts_values;
+
+						/* Check duplicate setting */
+						if (rule->nval > 0)
+						{
+							AUDIT_ELOG(LOG,
+									   "detect duplicate field setting \"%s\"in rule section, overwritten by \"%s\"",
+									   field, value);
+
+							/* Reset previous setting */
+							pfree(rule->values);
+							rule->nval = 0;
+						}
+
+						ts_values = (pg_time_t *) palloc(sizeof(pg_time_t) * list_len * 2);
 
 						/*
 						 * We expect that the format of timestamp type value
