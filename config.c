@@ -518,6 +518,8 @@ validate_settings(char *field, char *op,char *value,
 							List *ts_list;
 							ListCell *ts_cell;
 							char *range_string = (char *)lfirst(cell);
+							TimeADT begin = INVALID_ABSTIME;
+							TimeADT end = INVALID_ABSTIME;
 
 							/* The timestamp range should be separated by '-' */
 							if (!SplitIdentifierString(range_string, '-', &ts_list))
@@ -528,10 +530,50 @@ validate_settings(char *field, char *op,char *value,
 												value, field)));
 							}
 
+							/* Check if timestamp field is set by the pair */
+							if (list_length(ts_list) != 2)
+								ereport(ERROR,
+										(errcode(ERRCODE_CONFIG_FILE_ERROR),
+										 errmsg("timestamp parameter must be set with pair of the begin and end timestamp : \"%s\"",
+												value)));
+
 							/* We expect that the format of each ts_cell is 'HH:MM:SS' */
 							foreach(ts_cell, ts_list)
 							{
-								pg_time_t ts = str_to_timestamp((char *)lfirst(ts_cell));
+								TimeADT ts = str_to_timestamp((char *)lfirst(ts_cell));
+
+								if (begin == INVALID_ABSTIME)
+									begin = ts;
+								else if (end == INVALID_ABSTIME)
+								{
+									bool ret;
+
+									/*
+									 * The format checking for timestamp is done by time_in function
+									 * when tranforming. Here we check if timestamp range is valid or
+									 * not.
+									 */
+									end = ts;
+									ret = DirectFunctionCall2(time_lt,
+															  TimeADTGetDatum(begin),
+															  TimeADTGetDatum(end));
+									if (!ret)
+									{
+										char *begin_str, *end_str;
+
+										begin_str = (char *) DirectFunctionCall1(time_out, TimeADTGetDatum(begin));
+										end_str = (char *) DirectFunctionCall1(time_out, TimeADTGetDatum(end));
+
+										ereport(ERROR,
+												(errcode(ERRCODE_CONFIG_FILE_ERROR),
+												 errmsg("invalid timestamp parameters, the end timestamp must advance to the begin timestamp: "
+														"begin = \"%s\", end = \"%s\"",
+														begin_str, end_str)));
+									}
+
+									begin = end = INVALID_ABSTIME;
+								}
+
 								ts_values[rule->nval] = ts;
 								rule->nval++;
 							}
