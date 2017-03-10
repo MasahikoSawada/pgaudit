@@ -523,7 +523,10 @@ validate_settings(char *field, char *op,char *value,
 							/* The timestamp range should be separated by '-' */
 							if (!SplitIdentifierString(range_string, '-', &ts_list))
 							{
-								/* XXX : error */
+								ereport(ERROR,
+										(errcode(ERRCODE_CONFIG_FILE_ERROR),
+										 errmsg("invalid format parameter \"%s\" of field \"%s\" in rule section",
+												value, field)));
 							}
 
 							/* We expect that the format of each ts_cell is 'HH:MM:SS' */
