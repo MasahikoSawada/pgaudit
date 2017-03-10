@@ -9,7 +9,7 @@ BEGIN
     RETURN 0;
 END;
 $$ LANGUAGE plpgsql;
-NOTICE:  AUDIT: SESSION,1,1,DDL,,foo,[local],pg_regress,,,,,CREATE FUNCTION,FUNCTION,public.test_func(),"CREATE FUNCTION test_func() RETURNS INT AS
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,1,1,CREATE FUNCTION,,FUNCTION,public.test_func(),,"CREATE FUNCTION test_func() RETURNS INT AS
 $$
 BEGIN
     RETURN 0;
@@ -27,7 +27,7 @@ $$ LANGUAGE plpgsql;
 -- logged
 \c foo foo_user
 SELECT test_func();
-NOTICE:  AUDIT: SESSION,1,1,FUNCTION,,foo,[local],pg_regress,,,,,EXECUTE,FUNCTION,public.test_func,SELECT test_func();,<none>
+NOTICE:  AUDIT: SESSION,FUNCTION,,[local],,pg_regress,,foo,,1,1,EXECUTE,,FUNCTION,public.test_func,,SELECT test_func();,<none>
  test_func 
 -----------
          0

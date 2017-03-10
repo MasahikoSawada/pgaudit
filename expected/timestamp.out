@@ -4,7 +4,7 @@ CREATE TABLE timestamp_test2(col timestamp);
 -- Check if the audit logging for timestamp_test1 is logged and
 -- the audit logging for timestamp_test2 is NOT logged now.
 SELECT * FROM timestamp_test1;
-NOTICE:  AUDIT: SESSION,1,1,READ,,regression,[local],pg_regress,,,,,SELECT,TABLE,public.timestamp_test1,SELECT * FROM timestamp_test1;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,regression,,1,1,SELECT,,TABLE,public.timestamp_test1,,SELECT * FROM timestamp_test1;,<none>
  col 
 -----
 (0 rows)
@@ -29,7 +29,7 @@ SELECT * FROM timestamp_test1;
 (0 rows)
 
 SELECT * FROM timestamp_test2;
-NOTICE:  AUDIT: SESSION,2,1,READ,,regression,[local],pg_regress,,,,,SELECT,TABLE,public.timestamp_test2,SELECT * FROM timestamp_test2;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,regression,,2,1,SELECT,,TABLE,public.timestamp_test2,,SELECT * FROM timestamp_test2;,<none>
  col 
 -----
 (0 rows)

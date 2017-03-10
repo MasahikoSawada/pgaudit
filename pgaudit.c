@@ -182,16 +182,14 @@ pgaudit_emit_log_hook(ErrorData *edata)
 					continue;
 
 				initStringInfo(&auditStr);
-				create_audit_log_string(&auditStr, edata, NULL, NULL);
+				create_audit_log_string(&auditStr, edata, NULL, className);
 
 				/*
 				 * XXX : We should support output format specified by 'format' or
 				 * emit the fixed format log.
 				 */
 				AUDIT_EREPORT(auditLogLevel,
-							  (errmsg("AUDIT: SESSION,,,%s,%s",
-									  className,
-									  auditStr.data),
+							  (errmsg(auditStr.data, ""), /* keep compile quiet */
 							   errhidestmt(true),
 							   errhidecontext(true)));
 			}
@@ -225,13 +223,9 @@ emit_session_sql_log(AuditEventStackItem *stackItem, bool *valid_rules,
 
 		/* Emit the audit log */
 		AUDIT_EREPORT(auditLogLevel,
-				(errmsg("AUDIT: SESSION," INT64_FORMAT "," INT64_FORMAT ",%s,%s",
-						stackItem->auditEvent.statementId,
-						stackItem->auditEvent.substatementId,
-						className,
-						auditStr.data),
-				 errhidestmt(true),
-				 errhidecontext(true)));
+					  (errmsg(auditStr.data, ""), /* keep compile quiet */
+					   errhidestmt(true),
+					   errhidecontext(true)));
 
 		stackItem->auditEvent.logged = true;
 	}
@@ -258,6 +252,16 @@ create_audit_log_string(StringInfo buf, ErrorData *edata,
 	char		strbuf[128];
 	char		separator = ',';
 
+	Assert(className != NULL);
+
+	/* Prefix "AUDIT: SESSION" */
+	appendStringInfoString(buf, "AUDIT: SESSION,");
+
+	/* class */
+	if (className)
+		appendStringInfoString(buf, className);
+	appendStringInfoChar(buf, separator);
+
 	/* timestamp(%t) */
 	if (!logForTest)
 	{
@@ -271,22 +275,14 @@ create_audit_log_string(StringInfo buf, ErrorData *edata,
 	}
 	appendStringInfoChar(buf, separator);
 
-	/* database name(%d) */
-	if (MyProcPort && MyProcPort->database_name)
-		appendStringInfoString(buf, MyProcPort->database_name);
-	appendStringInfoChar(buf, separator);
-
-	/* user name(%u) */
-	if (!logForTest)
-	{
-		if (MyProcPort && MyProcPort->user_name)
-			appendStringInfoString(buf, MyProcPort->user_name);
-		appendStringInfoChar(buf, separator);
-	}
-
 	/* remote host(%h) */
 	if (MyProcPort && MyProcPort->remote_host)
 		appendStringInfoString(buf, MyProcPort->remote_host);
+	appendStringInfoChar(buf, separator);
+
+	/* process id (%p) */
+	if (!logForTest)
+		appendStringInfo(buf, "%d", MyProcPid);
 	appendStringInfoChar(buf, separator);
 
 	/* applicaton name(%a) */
@@ -297,6 +293,19 @@ create_audit_log_string(StringInfo buf, ErrorData *edata,
 			appname = "[unknown]";
 		appendStringInfoString(buf, appname);
 	}
+	appendStringInfoChar(buf, separator);
+
+	/* user name(%u) */
+	if (!logForTest)
+	{
+		if (MyProcPort && MyProcPort->user_name)
+			appendStringInfoString(buf, MyProcPort->user_name);
+	}
+	appendStringInfoChar(buf, separator);
+
+	/* database name(%d) */
+	if (MyProcPort && MyProcPort->database_name)
+		appendStringInfoString(buf, MyProcPort->database_name);
 	appendStringInfoChar(buf, separator);
 
 	/* virtual transaction id (%v) */
@@ -311,9 +320,19 @@ create_audit_log_string(StringInfo buf, ErrorData *edata,
 	}
 	appendStringInfoChar(buf, separator);
 
-	/* transaction id (%x) */
-	if (!logForTest)
-		appendStringInfo(buf, "%d", GetTopTransactionIdIfAny());
+	/* Statement id */
+	if (stackItem)
+		appendStringInfo(buf, INT64_FORMAT, stackItem->auditEvent.statementId);
+	appendStringInfoChar(buf, separator);
+
+	/* Sub statement id */
+	if (stackItem)
+		appendStringInfo(buf, INT64_FORMAT, stackItem->auditEvent.substatementId);
+	appendStringInfoChar(buf, separator);
+
+	/* command tag */
+	if (stackItem)
+		append_valid_csv(buf, stackItem->auditEvent.command);
 	appendStringInfoChar(buf, separator);
 
 	/* error state (%e) */
@@ -321,29 +340,30 @@ create_audit_log_string(StringInfo buf, ErrorData *edata,
 		appendStringInfoString(buf, unpack_sql_state(edata->sqlerrcode));
 	appendStringInfoChar(buf, separator);
 
-	/* error message */
+	/* Object type */
+	if (stackItem)
+	append_valid_csv(buf, stackItem->auditEvent.objectType);
+	appendStringInfoChar(buf, separator);
+
+	/* Object name */
+	if (stackItem)
+		append_valid_csv(buf, stackItem->auditEvent.objectName);
+	appendStringInfoChar(buf, separator);
+
+	/* Error message */
 	if (edata != NULL)
 		appendStringInfoString(buf, edata->message);
 	appendStringInfoChar(buf, separator);
 
 	if (stackItem != NULL)
 	{
-		append_valid_csv(buf, stackItem->auditEvent.command);
-		appendStringInfoChar(buf, separator);
-
-		append_valid_csv(buf, stackItem->auditEvent.objectType);
-		appendStringInfoChar(buf, separator);
-
-		append_valid_csv(buf, stackItem->auditEvent.objectName);
-
 		if (!stackItem->auditEvent.statementLogged || !auditLogStatementOnce)
 		{
-			appendStringInfoChar(buf, separator);
-
+			/* SQL */
 			append_valid_csv(buf, stackItem->auditEvent.commandText);
 			appendStringInfoChar(buf, separator);
 
-			/* Handle parameter logging, if enabled. */
+			/* Parameter */
 			if (auditLogParameter)
 			{
 				int paramIdx;
@@ -401,8 +421,8 @@ create_audit_log_string(StringInfo buf, ErrorData *edata,
 		}
 	}
 	else
-		/* padding fr <command id>,<object type>,<object id>,<SQL>,<parameter>*/
-		appendStringInfoString(buf, ",,,,");
+		/* padding for <sql>,<parameter> */
+		appendStringInfoString(buf, ",");
 }
 
 /* Show all audit configuration */

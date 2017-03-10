@@ -17,13 +17,13 @@ DROP TABLE role_test;
 \c bar audit_role
 -- logged
 CREATE TABLE role_test(c int primary key);
-NOTICE:  AUDIT: SESSION,1,1,DDL,,bar,[local],pg_regress,,,,,CREATE TABLE,TABLE,public.role_test,CREATE TABLE role_test(c int primary key);,<none>
-NOTICE:  AUDIT: SESSION,1,1,DDL,,bar,[local],pg_regress,,,,,CREATE INDEX,INDEX,public.role_test_pkey,CREATE TABLE role_test(c int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,1,1,CREATE TABLE,,TABLE,public.role_test,,CREATE TABLE role_test(c int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,1,1,CREATE INDEX,,INDEX,public.role_test_pkey,,CREATE TABLE role_test(c int primary key);,<none>
 -- not logged
 INSERT INTO role_test VALUES(1);
 -- logged
 SELECT * FROM role_test;
-NOTICE:  AUDIT: SESSION,2,1,READ,,bar,[local],pg_regress,,,,,SELECT,TABLE,public.role_test,SELECT * FROM role_test;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,bar,,2,1,SELECT,,TABLE,public.role_test,,SELECT * FROM role_test;,<none>
  c 
 ---
  1
@@ -31,23 +31,23 @@ NOTICE:  AUDIT: SESSION,2,1,READ,,bar,[local],pg_regress,,,,,SELECT,TABLE,public
 
 -- logged
 DROP TABLE role_test;
-NOTICE:  AUDIT: SESSION,3,1,DDL,,bar,[local],pg_regress,,,,,DROP TABLE,TABLE,public.role_test,DROP TABLE role_test;,<none>
-NOTICE:  AUDIT: SESSION,3,1,DDL,,bar,[local],pg_regress,,,,,DROP TABLE,TABLE CONSTRAINT,role_test_pkey on public.role_test,DROP TABLE role_test;,<none>
-NOTICE:  AUDIT: SESSION,3,1,DDL,,bar,[local],pg_regress,,,,,DROP TABLE,INDEX,public.role_test_pkey,DROP TABLE role_test;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,3,1,DROP TABLE,,TABLE,public.role_test,,DROP TABLE role_test;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,3,1,DROP TABLE,,TABLE CONSTRAINT,role_test_pkey on public.role_test,,DROP TABLE role_test;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,3,1,DROP TABLE,,INDEX,public.role_test_pkey,,DROP TABLE role_test;,<none>
 -- SET ROLE doesn't work to avoid emit
 SET ROLE unaudit_role;
 CREATE TABLE role_test(c int primary key);
-NOTICE:  AUDIT: SESSION,4,1,DDL,,bar,[local],pg_regress,,,,,CREATE TABLE,TABLE,public.role_test,CREATE TABLE role_test(c int primary key);,<none>
-NOTICE:  AUDIT: SESSION,4,1,DDL,,bar,[local],pg_regress,,,,,CREATE INDEX,INDEX,public.role_test_pkey,CREATE TABLE role_test(c int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,4,1,CREATE TABLE,,TABLE,public.role_test,,CREATE TABLE role_test(c int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,4,1,CREATE INDEX,,INDEX,public.role_test_pkey,,CREATE TABLE role_test(c int primary key);,<none>
 INSERT INTO role_test VALUES(1);
 SELECT * FROM role_test;
-NOTICE:  AUDIT: SESSION,5,1,READ,,bar,[local],pg_regress,,,,,SELECT,TABLE,public.role_test,SELECT * FROM role_test;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,bar,,5,1,SELECT,,TABLE,public.role_test,,SELECT * FROM role_test;,<none>
  c 
 ---
  1
 (1 row)
 
 DROP TABLE role_test;
-NOTICE:  AUDIT: SESSION,6,1,DDL,,bar,[local],pg_regress,,,,,DROP TABLE,TABLE,public.role_test,DROP TABLE role_test;,<none>
-NOTICE:  AUDIT: SESSION,6,1,DDL,,bar,[local],pg_regress,,,,,DROP TABLE,TABLE CONSTRAINT,role_test_pkey on public.role_test,DROP TABLE role_test;,<none>
-NOTICE:  AUDIT: SESSION,6,1,DDL,,bar,[local],pg_regress,,,,,DROP TABLE,INDEX,public.role_test_pkey,DROP TABLE role_test;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,6,1,DROP TABLE,,TABLE,public.role_test,,DROP TABLE role_test;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,6,1,DROP TABLE,,TABLE CONSTRAINT,role_test_pkey on public.role_test,,DROP TABLE role_test;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,bar,,6,1,DROP TABLE,,INDEX,public.role_test_pkey,,DROP TABLE role_test;,<none>

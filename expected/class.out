@@ -1,51 +1,51 @@
 \c foo
 -- DDL, logged.
 CREATE TABLE a1 (col int primary key);
-NOTICE:  AUDIT: SESSION,1,1,DDL,,foo,[local],pg_regress,,,,,CREATE TABLE,TABLE,public.a1,CREATE TABLE a1 (col int primary key);,<none>
-NOTICE:  AUDIT: SESSION,1,1,DDL,,foo,[local],pg_regress,,,,,CREATE INDEX,INDEX,public.a1_pkey,CREATE TABLE a1 (col int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,1,1,CREATE TABLE,,TABLE,public.a1,,CREATE TABLE a1 (col int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,1,1,CREATE INDEX,,INDEX,public.a1_pkey,,CREATE TABLE a1 (col int primary key);,<none>
 ALTER TABLE a1 SET (fillfactor = 100);
-NOTICE:  AUDIT: SESSION,2,1,DDL,,foo,[local],pg_regress,,,,,ALTER TABLE,TABLE,public.a1,ALTER TABLE a1 SET (fillfactor = 100);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,2,1,ALTER TABLE,,TABLE,public.a1,,ALTER TABLE a1 SET (fillfactor = 100);,<none>
 -- READ, logged.
 SELECT * FROM a1;
-NOTICE:  AUDIT: SESSION,3,1,READ,,foo,[local],pg_regress,,,,,SELECT,TABLE,public.a1,SELECT * FROM a1;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,foo,,3,1,SELECT,,TABLE,public.a1,,SELECT * FROM a1;,<none>
  col 
 -----
 (0 rows)
 
 -- WRITE, logged.
 INSERT INTO a1 VALUES(1);
-NOTICE:  AUDIT: SESSION,4,1,WRITE,,foo,[local],pg_regress,,,,,INSERT,TABLE,public.a1,INSERT INTO a1 VALUES(1);,<none>
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,foo,,4,1,INSERT,,TABLE,public.a1,,INSERT INTO a1 VALUES(1);,<none>
 UPDATE a1 SET col = col;
-NOTICE:  AUDIT: SESSION,5,1,WRITE,,foo,[local],pg_regress,,,,,UPDATE,TABLE,public.a1,UPDATE a1 SET col = col;,<none>
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,foo,,5,1,UPDATE,,TABLE,public.a1,,UPDATE a1 SET col = col;,<none>
 -- MISC, not logged.
 VACUUM a1;
 REINDEX TABLE a1;
 -- ROLE, logged.
 CREATE USER test_user;
-NOTICE:  AUDIT: SESSION,6,1,ROLE,,foo,[local],pg_regress,,,,,CREATE ROLE,,,CREATE USER test_user;,<none>
+NOTICE:  AUDIT: SESSION,ROLE,,[local],,pg_regress,,foo,,6,1,CREATE ROLE,,,,,CREATE USER test_user;,<none>
 GRANT ALL ON a1 To test_user;
-NOTICE:  AUDIT: SESSION,7,1,ROLE,,foo,[local],pg_regress,,,,,GRANT,TABLE,,GRANT ALL ON a1 To test_user;,<none>
+NOTICE:  AUDIT: SESSION,ROLE,,[local],,pg_regress,,foo,,7,1,GRANT,,TABLE,,,GRANT ALL ON a1 To test_user;,<none>
 -- FUNCTION, logged.
 DO $$ BEGIN EXECUTE 'select ' || '* FROM a1'; END$$;
-NOTICE:  AUDIT: SESSION,8,1,FUNCTION,,foo,[local],pg_regress,,,,,DO,,,DO $$ BEGIN EXECUTE 'select ' || '* FROM a1'; END$$;,<none>
-NOTICE:  AUDIT: SESSION,8,2,READ,,foo,[local],pg_regress,,,,,SELECT,TABLE,public.a1,select * FROM a1,<none>
+NOTICE:  AUDIT: SESSION,FUNCTION,,[local],,pg_regress,,foo,,8,1,DO,,,,,DO $$ BEGIN EXECUTE 'select ' || '* FROM a1'; END$$;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,foo,,8,2,SELECT,,TABLE,public.a1,,select * FROM a1,<none>
 -- DROP table
 DROP TABLE a1;
-NOTICE:  AUDIT: SESSION,9,1,DDL,,foo,[local],pg_regress,,,,,DROP TABLE,TABLE,public.a1,DROP TABLE a1;,<none>
-NOTICE:  AUDIT: SESSION,9,1,DDL,,foo,[local],pg_regress,,,,,DROP TABLE,TABLE CONSTRAINT,a1_pkey on public.a1,DROP TABLE a1;,<none>
-NOTICE:  AUDIT: SESSION,9,1,DDL,,foo,[local],pg_regress,,,,,DROP TABLE,INDEX,public.a1_pkey,DROP TABLE a1;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,9,1,DROP TABLE,,TABLE,public.a1,,DROP TABLE a1;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,9,1,DROP TABLE,,TABLE CONSTRAINT,a1_pkey on public.a1,,DROP TABLE a1;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,9,1,DROP TABLE,,INDEX,public.a1_pkey,,DROP TABLE a1;,<none>
 -- Test log parameter
 BEGIN;
 PREPARE prep_dx AS SELECT * FROM pg_extension WHERE extname = $1 AND extversion = $2;
 EXECUTE prep_dx ('plpgsql','1.0');
-NOTICE:  AUDIT: SESSION,10,1,READ,,foo,[local],pg_regress,,,,,SELECT,TABLE,pg_catalog.pg_extension,PREPARE prep_dx AS SELECT * FROM pg_extension WHERE extname = $1 AND extversion = $2;,plpgsql 1.0
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,foo,,10,1,SELECT,,TABLE,pg_catalog.pg_extension,,PREPARE prep_dx AS SELECT * FROM pg_extension WHERE extname = $1 AND extversion = $2;,plpgsql 1.0
  extname | extowner | extnamespace | extrelocatable | extversion | extconfig | extcondition 
 ---------+----------+--------------+----------------+------------+-----------+--------------
  plpgsql |       10 |           11 | f              | 1.0        |           | 
 (1 row)
 
 EXECUTE prep_dx ('hogehoge','2.0');
-NOTICE:  AUDIT: SESSION,11,1,READ,,foo,[local],pg_regress,,,,,SELECT,TABLE,pg_catalog.pg_extension,PREPARE prep_dx AS SELECT * FROM pg_extension WHERE extname = $1 AND extversion = $2;,hogehoge 2.0
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,foo,,11,1,SELECT,,TABLE,pg_catalog.pg_extension,,PREPARE prep_dx AS SELECT * FROM pg_extension WHERE extname = $1 AND extversion = $2;,hogehoge 2.0
  extname | extowner | extnamespace | extrelocatable | extversion | extconfig | extcondition 
 ---------+----------+--------------+----------------+------------+-----------+--------------
 (0 rows)
@@ -55,8 +55,8 @@ COMMIT;
 \c baz
 -- DDL, logged
 CREATE TABLE a2 (c int primary key);
-NOTICE:  AUDIT: SESSION,1,1,DDL,,baz,[local],pg_regress,,,,,CREATE TABLE,TABLE,public.a2,CREATE TABLE a2 (c int primary key);,<none>
-NOTICE:  AUDIT: SESSION,1,1,DDL,,baz,[local],pg_regress,,,,,CREATE INDEX,INDEX,public.a2_pkey,CREATE TABLE a2 (c int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,baz,,1,1,CREATE TABLE,,TABLE,public.a2,,CREATE TABLE a2 (c int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,baz,,1,1,CREATE INDEX,,INDEX,public.a2_pkey,,CREATE TABLE a2 (c int primary key);,<none>
 -- READ, not logged
 SELECT  * FROM a2;
  c 
@@ -65,15 +65,15 @@ SELECT  * FROM a2;
 
 -- DDL and READ
 CREATE VIEW a2_view AS SELECT * FROM a2;
-NOTICE:  AUDIT: SESSION,2,1,DDL,,baz,[local],pg_regress,,,,,CREATE VIEW,VIEW,public.a2_view,CREATE VIEW a2_view AS SELECT * FROM a2;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,baz,,2,1,CREATE VIEW,,VIEW,public.a2_view,,CREATE VIEW a2_view AS SELECT * FROM a2;,<none>
 -- WRITE, logged
 INSERT INTO a2 VALUES(1);
-NOTICE:  AUDIT: SESSION,3,1,WRITE,,baz,[local],pg_regress,,,,,INSERT,TABLE,public.a2,INSERT INTO a2 VALUES(1);,<none>
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,baz,,3,1,INSERT,,TABLE,public.a2,,INSERT INTO a2 VALUES(1);,<none>
 UPDATE a2 SET c = c;
-NOTICE:  AUDIT: SESSION,4,1,WRITE,,baz,[local],pg_regress,,,,,UPDATE,TABLE,public.a2,UPDATE a2 SET c = c;,<none>
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,baz,,4,1,UPDATE,,TABLE,public.a2,,UPDATE a2 SET c = c;,<none>
 -- DDL, logged
 ALTER TABLE a2 SET (fillfactor = 100);
-NOTICE:  AUDIT: SESSION,5,1,DDL,,baz,[local],pg_regress,,,,,ALTER TABLE,TABLE,public.a2,ALTER TABLE a2 SET (fillfactor = 100);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,baz,,5,1,ALTER TABLE,,TABLE,public.a2,,ALTER TABLE a2 SET (fillfactor = 100);,<none>
 -- DDL, logged
 CREATE FUNCTION test_func() RETURNS INT AS
 $$
@@ -81,7 +81,7 @@ BEGIN
     RETURN 0;
 END;
 $$ LANGUAGE plpgsql;
-NOTICE:  AUDIT: SESSION,6,1,DDL,,baz,[local],pg_regress,,,,,CREATE FUNCTION,FUNCTION,public.test_func(),"CREATE FUNCTION test_func() RETURNS INT AS
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,baz,,6,1,CREATE FUNCTION,,FUNCTION,public.test_func(),,"CREATE FUNCTION test_func() RETURNS INT AS
 $$
 BEGIN
     RETURN 0;
@@ -104,7 +104,7 @@ VACUUM a2;
 --
 -- Set up DDLs are logged.
 CREATE TABLE trig_test(v text);
-NOTICE:  AUDIT: SESSION,7,1,DDL,,baz,[local],pg_regress,,,,,CREATE TABLE,TABLE,public.trig_test,CREATE TABLE trig_test(v text);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,baz,,7,1,CREATE TABLE,,TABLE,public.trig_test,,CREATE TABLE trig_test(v text);,<none>
 CREATE TABLE trig_audit(
 operation char(1) NOT NULL,
 stamp timestamp NOT NULL,
@@ -112,7 +112,7 @@ userid text NOT NULL,
 old_value text,
 new_value text
 );
-NOTICE:  AUDIT: SESSION,8,1,DDL,,baz,[local],pg_regress,,,,,CREATE TABLE,TABLE,public.trig_audit,"CREATE TABLE trig_audit(
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,baz,,8,1,CREATE TABLE,,TABLE,public.trig_audit,,"CREATE TABLE trig_audit(
 operation char(1) NOT NULL,
 stamp timestamp NOT NULL,
 userid text NOT NULL,
@@ -134,7 +134,7 @@ BEGIN
         RETURN NULL;
 END;
 $emp_audit$ LANGUAGE plpgsql;
-NOTICE:  AUDIT: SESSION,9,1,DDL,,baz,[local],pg_regress,,,,,CREATE FUNCTION,FUNCTION,public.process_trig_audit(),"CREATE OR REPLACE FUNCTION process_trig_audit() RETURNS TRIGGER AS $emp_audit$
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,baz,,9,1,CREATE FUNCTION,,FUNCTION,public.process_trig_audit(),,"CREATE OR REPLACE FUNCTION process_trig_audit() RETURNS TRIGGER AS $emp_audit$
 BEGIN
     IF (TG_OP = 'DELETE') THEN
         INSERT INTO trig_audit SELECT 'D', now(), user, OLD.*, NULL;
@@ -151,21 +151,21 @@ END;
 $emp_audit$ LANGUAGE plpgsql;",<none>
 CREATE TRIGGER trig_audit AFTER INSERT OR UPDATE OR DELETE ON trig_test
 FOR EACH ROW EXECUTE PROCEDURE process_trig_audit();
-NOTICE:  AUDIT: SESSION,10,1,DDL,,baz,[local],pg_regress,,,,,CREATE TRIGGER,TRIGGER,trig_audit on public.trig_test,"CREATE TRIGGER trig_audit AFTER INSERT OR UPDATE OR DELETE ON trig_test
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,baz,,10,1,CREATE TRIGGER,,TRIGGER,trig_audit on public.trig_test,,"CREATE TRIGGER trig_audit AFTER INSERT OR UPDATE OR DELETE ON trig_test
 FOR EACH ROW EXECUTE PROCEDURE process_trig_audit();",<none>
 -- Check if the following trigger operations are logged as well.
 -- INSERT, logged
 INSERT INTO trig_test VALUES ('new value');
-NOTICE:  AUDIT: SESSION,11,1,WRITE,,baz,[local],pg_regress,,,,,INSERT,TABLE,public.trig_test,INSERT INTO trig_test VALUES ('new value');,<none>
-NOTICE:  AUDIT: SESSION,11,2,WRITE,,baz,[local],pg_regress,,,,,INSERT,TABLE,public.trig_audit,"INSERT INTO trig_audit SELECT 'I', now(), user, NULL, NEW.*",  trig_audit AFTER ROW INSERT 16451 trig_test trig_test public 0  f
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,baz,,11,1,INSERT,,TABLE,public.trig_test,,INSERT INTO trig_test VALUES ('new value');,<none>
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,baz,,11,2,INSERT,,TABLE,public.trig_audit,,"INSERT INTO trig_audit SELECT 'I', now(), user, NULL, NEW.*",  trig_audit AFTER ROW INSERT 16451 trig_test trig_test public 0  f
 -- UPDATE, logged
 UPDATE trig_test SET v = 'updated value';
-NOTICE:  AUDIT: SESSION,12,1,WRITE,,baz,[local],pg_regress,,,,,UPDATE,TABLE,public.trig_test,UPDATE trig_test SET v = 'updated value';,<none>
-NOTICE:  AUDIT: SESSION,12,2,WRITE,,baz,[local],pg_regress,,,,,INSERT,TABLE,public.trig_audit,"INSERT INTO trig_audit SELECT 'U', now(), user, OLD.*, NEW.*",  trig_audit AFTER ROW UPDATE 16451 trig_test trig_test public 0  f
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,baz,,12,1,UPDATE,,TABLE,public.trig_test,,UPDATE trig_test SET v = 'updated value';,<none>
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,baz,,12,2,INSERT,,TABLE,public.trig_audit,,"INSERT INTO trig_audit SELECT 'U', now(), user, OLD.*, NEW.*",  trig_audit AFTER ROW UPDATE 16451 trig_test trig_test public 0  f
 -- DELETE, logged
 DELETE FROM trig_test; -- delete 1 row
-NOTICE:  AUDIT: SESSION,13,1,WRITE,,baz,[local],pg_regress,,,,,DELETE,TABLE,public.trig_test,DELETE FROM trig_test;,<none>
-NOTICE:  AUDIT: SESSION,13,2,WRITE,,baz,[local],pg_regress,,,,,INSERT,TABLE,public.trig_audit,"INSERT INTO trig_audit SELECT 'D', now(), user, OLD.*, NULL",  trig_audit AFTER ROW DELETE 16451 trig_test trig_test public 0  f
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,baz,,13,1,DELETE,,TABLE,public.trig_test,,DELETE FROM trig_test;,<none>
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,baz,,13,2,INSERT,,TABLE,public.trig_audit,,"INSERT INTO trig_audit SELECT 'D', now(), user, OLD.*, NULL",  trig_audit AFTER ROW DELETE 16451 trig_test trig_test public 0  f
 -- SELECT, not logged
 SELECT count(*) FROM trig_test;
  count 

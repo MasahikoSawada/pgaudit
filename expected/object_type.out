@@ -1,19 +1,19 @@
 \c foo
 -- Setup relations
 CREATE TABLE obj_type (col int primary key);
-NOTICE:  AUDIT: SESSION,1,1,DDL,,foo,[local],pg_regress,,,,,CREATE TABLE,TABLE,public.obj_type,CREATE TABLE obj_type (col int primary key);,<none>
-NOTICE:  AUDIT: SESSION,1,1,DDL,,foo,[local],pg_regress,,,,,CREATE INDEX,INDEX,public.obj_type_pkey,CREATE TABLE obj_type (col int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,1,1,CREATE TABLE,,TABLE,public.obj_type,,CREATE TABLE obj_type (col int primary key);,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,1,1,CREATE INDEX,,INDEX,public.obj_type_pkey,,CREATE TABLE obj_type (col int primary key);,<none>
 CREATE MATERIALIZED VIEW obj_type_mv AS SELECT * FROM obj_type;
-NOTICE:  AUDIT: SESSION,2,1,READ,,foo,[local],pg_regress,,,,,SELECT,TABLE,public.obj_type,CREATE MATERIALIZED VIEW obj_type_mv AS SELECT * FROM obj_type;,<none>
-NOTICE:  AUDIT: SESSION,2,1,WRITE,,foo,[local],pg_regress,,,,,INSERT,MATERIALIZED VIEW,public.obj_type_mv,CREATE MATERIALIZED VIEW obj_type_mv AS SELECT * FROM obj_type;,<none>
-NOTICE:  AUDIT: SESSION,2,2,DDL,,foo,[local],pg_regress,,,,,CREATE MATERIALIZED VIEW,MATERIALIZED VIEW,public.obj_type_mv,CREATE MATERIALIZED VIEW obj_type_mv AS SELECT * FROM obj_type;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,foo,,2,1,SELECT,,TABLE,public.obj_type,,CREATE MATERIALIZED VIEW obj_type_mv AS SELECT * FROM obj_type;,<none>
+NOTICE:  AUDIT: SESSION,WRITE,,[local],,pg_regress,,foo,,2,1,INSERT,,MATERIALIZED VIEW,public.obj_type_mv,,CREATE MATERIALIZED VIEW obj_type_mv AS SELECT * FROM obj_type;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,2,2,CREATE MATERIALIZED VIEW,,MATERIALIZED VIEW,public.obj_type_mv,,CREATE MATERIALIZED VIEW obj_type_mv AS SELECT * FROM obj_type;,<none>
 CREATE VIEW obj_type_v AS SELECT * FROM obj_type;
-NOTICE:  AUDIT: SESSION,3,1,DDL,,foo,[local],pg_regress,,,,,CREATE VIEW,VIEW,public.obj_type_v,CREATE VIEW obj_type_v AS SELECT * FROM obj_type;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,3,1,CREATE VIEW,,VIEW,public.obj_type_v,,CREATE VIEW obj_type_v AS SELECT * FROM obj_type;,<none>
 CREATE SEQUENCE sq1;
-NOTICE:  AUDIT: SESSION,4,1,DDL,,foo,[local],pg_regress,,,,,CREATE SEQUENCE,SEQUENCE,public.sq1,CREATE SEQUENCE sq1;,<none>
+NOTICE:  AUDIT: SESSION,DDL,,[local],,pg_regress,,foo,,4,1,CREATE SEQUENCE,,SEQUENCE,public.sq1,,CREATE SEQUENCE sq1;,<none>
 -- TABLE, logged.
 SELECT * FROM obj_type;
-NOTICE:  AUDIT: SESSION,5,1,READ,,foo,[local],pg_regress,,,,,SELECT,TABLE,public.obj_type,SELECT * FROM obj_type;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,foo,,5,1,SELECT,,TABLE,public.obj_type,,SELECT * FROM obj_type;,<none>
  col 
 -----
 (0 rows)
@@ -22,7 +22,7 @@ NOTICE:  AUDIT: SESSION,5,1,READ,,foo,[local],pg_regress,,,,,SELECT,TABLE,public
 REINDEX INDEX obj_type_pkey;
 -- SEQUENCE, logged.
 SELECT * FROM sq1;
-NOTICE:  AUDIT: SESSION,6,1,READ,,foo,[local],pg_regress,,,,,SELECT,SEQUENCE,public.sq1,SELECT * FROM sq1;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,foo,,6,1,SELECT,,SEQUENCE,public.sq1,,SELECT * FROM sq1;,<none>
  sequence_name | last_value | start_value | increment_by |      max_value      | min_value | cache_value | log_cnt | is_cycled | is_called 
 ---------------+------------+-------------+--------------+---------------------+-----------+-------------+---------+-----------+-----------
  sq1           |          1 |           1 |            1 | 9223372036854775807 |         1 |           1 |       0 | f         | f
@@ -30,21 +30,21 @@ NOTICE:  AUDIT: SESSION,6,1,READ,,foo,[local],pg_regress,,,,,SELECT,SEQUENCE,pub
 
 -- VIEW, not logged but TABLE is logged.
 SELECT * FROM obj_type_v;
-NOTICE:  AUDIT: SESSION,7,1,READ,,foo,[local],pg_regress,,,,,SELECT,TABLE,public.obj_type,SELECT * FROM obj_type_v;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,foo,,7,1,SELECT,,TABLE,public.obj_type,,SELECT * FROM obj_type_v;,<none>
  col 
 -----
 (0 rows)
 
 -- MATERIALIZED VIEW, logged.
 SELECT * FROM obj_type_mv;
-NOTICE:  AUDIT: SESSION,8,1,READ,,foo,[local],pg_regress,,,,,SELECT,MATERIALIZED VIEW,public.obj_type_mv,SELECT * FROM obj_type_mv;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,pg_regress,,foo,,8,1,SELECT,,MATERIALIZED VIEW,public.obj_type_mv,,SELECT * FROM obj_type_mv;,<none>
  col 
 -----
 (0 rows)
 
 -- FUNCTION, logged.
 SELECT test_func();
-NOTICE:  AUDIT: SESSION,9,1,FUNCTION,,foo,[local],pg_regress,,,,,EXECUTE,FUNCTION,public.test_func,SELECT test_func();,<none>
+NOTICE:  AUDIT: SESSION,FUNCTION,,[local],,pg_regress,,foo,,9,1,EXECUTE,,FUNCTION,public.test_func,,SELECT test_func();,<none>
  test_func 
 -----------
          0

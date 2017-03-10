@@ -10,7 +10,7 @@ SELECT * FROM appname1;
 
 SET application_name TO 'appname1';
 SELECT * FROM appname1; -- must be logged
-NOTICE:  AUDIT: SESSION,1,1,READ,,regression,[local],appname1,,,,,SELECT,TABLE,public.appname1,SELECT * FROM appname1;,<none>
+NOTICE:  AUDIT: SESSION,READ,,[local],,appname1,,regression,,1,1,SELECT,,TABLE,public.appname1,,SELECT * FROM appname1;,<none>
  col 
 -----
 (0 rows)
@@ -29,7 +29,7 @@ LINE 1: SELECT err_col FROM appname2;
                ^
 SET application_name TO 'appname2';
 SELECT err_col FROM appname2; -- error, must be logged
-NOTICE:  AUDIT: SESSION,,,ERROR,,regression,[local],appname2,,,42703,column "err_col" does not exist,,,,,
+NOTICE:  AUDIT: SESSION,ERROR,,[local],,appname2,,regression,,,,,42703,,,column "err_col" does not exist,,
 ERROR:  column "err_col" does not exist
 LINE 1: SELECT err_col FROM appname2;
                ^
