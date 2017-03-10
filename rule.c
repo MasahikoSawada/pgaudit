@@ -237,7 +237,6 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 	char *remote_host = NULL;
 	char *user_name = NULL;
 	int	object_type = 0;
-	pg_time_t audit_ts_of_day;
 
 	if (stackItem != NULL)
 	{
@@ -257,9 +256,6 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 		object_type = (stackItem->auditEvent.objectType == NULL) ?
 			0 : objecttype_to_bitmap(stackItem->auditEvent.objectType, false);
 
-		/* timestamp */
-		audit_ts_of_day = auditTimestampOfDay;
-
 		/* application name */
 		appname = (application_name == NULL || application_name == '\0') ?
 			"" : application_name;
@@ -278,9 +274,6 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 		/* user name */
 		if (MyProcPort != NULL && MyProcPort->user_name != NULL)
 			user_name = MyProcPort->user_name;
-
-		/* timestamp  */
-		audit_ts_of_day = auditTimestampOfDay;
 
 		/* application name */
 		appname = (application_name == NULL || application_name == '\0') ?
@@ -306,7 +299,7 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 			 * When we're about to log related to table operation such as read,
 			 * write and misc, we apply object_name and object_type rule in addition.
 			 */
-			if (apply_one_rule(&audit_ts_of_day, rconf->rules[AUDIT_RULE_TIMESTAMP]) &&
+			if (apply_one_rule(&auditTimestampOfDay, rconf->rules[AUDIT_RULE_TIMESTAMP]) &&
 				apply_one_rule(database_name, rconf->rules[AUDIT_RULE_DATABASE]) &&
 				apply_one_rule(user_name, rconf->rules[AUDIT_RULE_AUDIT_ROLE]) &&
 				apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]) &&
@@ -330,7 +323,7 @@ apply_all_rules(AuditEventStackItem *stackItem, ErrorData *edata,
 			 *
 			 * XXX : Need to consider how we process AUDIT_RULE_COMMAND_TAG.
 			 */
-			if (apply_one_rule(&audit_ts_of_day, rconf->rules[AUDIT_RULE_TIMESTAMP]) &&
+			if (apply_one_rule(&auditTimestampOfDay, rconf->rules[AUDIT_RULE_TIMESTAMP]) &&
 				apply_one_rule(database_name, rconf->rules[AUDIT_RULE_DATABASE]) &&
 				apply_one_rule(user_name, rconf->rules[AUDIT_RULE_AUDIT_ROLE]) &&
 				apply_one_rule(&class, rconf->rules[AUDIT_RULE_CLASS]) &&
