@@ -3,6 +3,8 @@
 CONFIG_FILE_ORIG=conf/audit.conf.org
 CONFIG_FILE=conf/audit.conf
 
+export TZ=PST8PDT
+
 # Prepare for timestamp test.
 # 
 # Because timestamp of executing regression test is always different,
