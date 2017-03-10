@@ -12,6 +12,11 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
+#include "fmgr.h"
+#include "utils/date.h"
+#include "utils/nabstime.h"
+#include "utils/timestamp.h"
+
 #include "config.h"
 #include "pgaudit.h"
 
@@ -96,7 +101,7 @@ static int	audit_parse_state = 0;
 /* Primitive functions */
 static bool	str_to_bool(const char *str);
 static bool op_to_bool(const char *str);
-static pg_time_t str_to_timestamp(const char *str);
+static TimeADT str_to_timestamp(const char *str);
 static int class_to_bitmap(const char *str);
 static char *audit_scanstr(const char *str);
 static char *get_auditsection_string(int section);
@@ -231,16 +236,10 @@ audit_scanstr(const char *str)
 }
 
 /* Convert string to timestamp */
-static pg_time_t
+static TimeADT
 str_to_timestamp(const char *str)
 {
-	pg_time_t ret;
-	int hour, min, sec;
-
-	sscanf(str, "%d:%d:%d", &hour, &min, &sec);
-	ret = hour * 3600 + min * 60 + sec;
-
-	return ret;
+	return DatumGetTimeADT(DirectFunctionCall1(time_in, CStringGetDatum(str)));
 }
 
 /*
@@ -493,7 +492,7 @@ validate_settings(char *field, char *op,char *value,
 					/* TIMESTAMP rule type */
 					else if (rule->type == AUDIT_RULE_TYPE_TIMESTAMP)
 					{
-						pg_time_t *ts_values;
+						TimeADT *ts_values;
 
 						/* Check duplicate setting */
 						if (rule->nval > 0)
@@ -507,7 +506,7 @@ validate_settings(char *field, char *op,char *value,
 							rule->nval = 0;
 						}
 
-						ts_values = (pg_time_t *) palloc(sizeof(pg_time_t) * list_len * 2);
+						ts_values = (TimeADT *) palloc(sizeof(TimeADT) * list_len * 2);
 
 						/*
 						 * We expect that the format of timestamp type value

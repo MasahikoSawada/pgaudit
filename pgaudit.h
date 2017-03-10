@@ -32,7 +32,7 @@
  * In case where we want to use elog/ereport, we should use AUDIT_ELOG/EREPORT instead
  * which easily avoid to emit log recusively.
  */
-static int emitAuditLogCalled = 0;
+extern int emitAuditLogCalled;
 #define START_AUDIT_LOGGING()	(emitAuditLogCalled++)
 #define END_AUDIT_LOGGING() 	(emitAuditLogCalled--)
 #define AUDIT_ELOG(level, ...) \

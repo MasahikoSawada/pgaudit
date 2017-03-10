@@ -13,6 +13,8 @@
  */
 #include "postgres.h"
 
+#include <time.h>
+
 #include "access/htup_details.h"
 #include "access/sysattr.h"
 #include "access/xact.h"
@@ -25,6 +27,7 @@
 #include "commands/event_trigger.h"
 #include "executor/executor.h"
 #include "executor/spi.h"
+#include "fmgr.h"
 #include "miscadmin.h"
 #include "libpq/auth.h"
 #include "nodes/nodes.h"
@@ -33,6 +36,7 @@
 #include "tcop/deparse_utility.h"
 #include "utils/acl.h"
 #include "utils/builtins.h"
+#include "utils/date.h"
 #include "utils/guc.h"
 #include "utils/guc_tables.h"
 #include "utils/lsyscache.h"
@@ -49,6 +53,8 @@
 extern bool Log_connections;
 extern bool Log_disconnections;
 extern bool log_replication_commands;;
+
+int emitAuditLogCalled = 0;
 
 PG_MODULE_MAGIC;
 
@@ -73,7 +79,7 @@ char *config_file = NULL;
 /*
  * Command, used for SELECT/DML and function calls.
  *
- * We hook into the executor, but we do not have access to the parsetree there.
+ * We hook into the executor, but we do not have access to the parsetee there.
  * Therefore we can't simply call CreateCommandTag() to get the command and have
  * to build it ourselves based on what information we do have.
  *
@@ -128,7 +134,7 @@ static int64 stackTotal = 0;
 static bool statementLogged = false;
 
 /* Functions and variable for audit timestamp stuff */
-pg_time_t auditTimestampOfDay;
+TimeADT auditTimestampOfDay;
 pg_time_t auditTimestamp;
 static void setAuditTimestamp(void);
 
@@ -255,9 +261,12 @@ create_audit_log_string(StringInfo buf, ErrorData *edata,
 	/* timestamp(%t) */
 	if (!logForTest)
 	{
+		pg_time_t   stamp_time = (pg_time_t) time(NULL);
+
 		pg_strftime(strbuf, sizeof(strbuf),
 					"%Y-%m-%d %H:%M:%S %Z",
-					pg_localtime(&auditTimestamp, log_timezone));
+					pg_localtime(&stamp_time, log_timezone));
+
 		appendStringInfoString(buf, strbuf);
 	}
 	appendStringInfoChar(buf, separator);
@@ -1707,20 +1716,12 @@ pgaudit_sql_drop(PG_FUNCTION_ARGS)
 static void
 setAuditTimestamp(void)
 {
-	struct timeval tv;
-	pg_time_t unix_time;
-	struct pg_tm *local_time;
+	TimestampTz current_timestamp = GetCurrentTimestamp();
+	Datum currenttime_datum = DirectFunctionCall1(timestamptz_time,
+												  TimestampTzGetDatum(current_timestamp));
 
-	/* get the current time */
-	gettimeofday(&tv, NULL);
-
-	unix_time = (pg_time_t) tv.tv_sec;
-
-	local_time = pg_localtime(&unix_time, log_timezone);
-
-	auditTimestampOfDay = local_time->tm_hour * 3600 + local_time->tm_min * 60 +
-		local_time->tm_sec;
-	auditTimestamp = unix_time;
+	auditTimestampOfDay = DatumGetTimeADT(currenttime_datum);
+	auditTimestamp = current_timestamp;
 }
 
 /*

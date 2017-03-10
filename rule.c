@@ -8,8 +8,10 @@
 #include "postgres.h"
 
 #include "access/xact.h"
+#include "fmgr.h"
 #include "miscadmin.h"
 #include "libpq/auth.h"
+#include "utils/date.h"
 
 #include "config.h"
 
@@ -412,20 +414,21 @@ apply_string_rule(char *value, AuditRule rule)
  * Check if current timestamp is within the range of rule.
  */
 static bool
-apply_timestamp_rule(pg_time_t value, AuditRule rule)
+apply_timestamp_rule(TimeADT value, AuditRule rule)
 {
 	int i;
-	pg_time_t *ts_ptr;
+	TimeADT *ts_ptr;
 
 	/* Return true if this rule is not defined */
 	if (rule.values == NULL)
 		return true;
 
-	ts_ptr = (pg_time_t *) rule.values;
+	ts_ptr = (TimeADT *) rule.values;
 	for (i = 0; i < rule.nval; i += 2)
 	{
-		pg_time_t begin = ts_ptr[i];
-		pg_time_t end = ts_ptr[i+1];
+		bool ret = true;
+		TimeADT begin = ts_ptr[i];
+		TimeADT end = ts_ptr[i+1];
 
 		/*
 		 * If 'eq' is true, we need to emit audit log if at least
@@ -433,7 +436,14 @@ apply_timestamp_rule(pg_time_t value, AuditRule rule)
 		 * false then we need to emit audit log only when all timestamp
 		 * rule aren't matched.
 		 */
-		if (begin <= value && value <= end)
+		ret &= DirectFunctionCall2(time_ge,
+								   TimeADTGetDatum(value),
+								   TimeADTGetDatum(begin));
+		ret &= DirectFunctionCall2(time_le,
+								   TimeADTGetDatum(value),
+								   TimeADTGetDatum(end));
+
+		if (ret)
 		{
 			/* Matched */
 			if (rule.eq)
