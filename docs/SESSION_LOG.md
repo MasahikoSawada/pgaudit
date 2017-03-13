@@ -27,19 +27,17 @@ The end of an interval is prolonged to just before the next second of later time
 The timestamp used `pgaudit` rule evaluation internally is different from one issued in the log entry. Because when `pgaudit` output a log entry after evaluation, it generates timestamp for log entry.
 
 * class
-
-The details of each values are:
-* READ: SELECT and COPY FROM.
-* WRITE: INSERT, UPDATE, DELETE, TRUNCATE, and COPY TO.
-* FUNCTION: Function calls and DO blocks.
-* ROLE: Statements related to roles and privileges: GRANT, REVOKE, CREATE/ALTER/DROP ROLE.
-* DDL: All DDL that is not included in the ROLE class.
-* CONNECT : Connection events. request, authorized, and disconnect.
-* SYSTEM : Server start up. ready, normal and interrupted.
-* BACKUP : pg_basebackup.
-* ERROR : Event that ended by an error (PostgreSQL Error Code is not in the Class 00 ). Available when log_min_message is set to ERROR or lower.
-    *  Logging the messages; connection receiving, authorized, disconnected, database system is ready, normal shutdown, interrupted shutdown.
-* MISC: Miscellaneous commands, e.g. DISCARD, FETCH, CHECKPOINT, VACUUM.
+  * READ: SELECT and COPY FROM.
+  * WRITE: INSERT, UPDATE, DELETE, TRUNCATE, and COPY TO.
+  * FUNCTION: Function calls and DO blocks.
+  * ROLE: Statements related to roles and privileges: GRANT, REVOKE, CREATE/ALTER/DROP ROLE.
+  * DDL: All DDL that is not included in the ROLE class.
+  * CONNECT : Connection events. request, authorized, and disconnect.
+  * SYSTEM : Server start up. ready, normal and interrupted.
+  * BACKUP : pg_basebackup.
+  * ERROR : Event that ended by an error (PostgreSQL Error Code is not in the Class 00 ). Available when log_min_message is set to ERROR or lower.
+      *  Logging the messages; connection receiving, authorized, disconnected, database system is ready, normal shutdown, interrupted shutdown.
+  * MISC: Miscellaneous commands, e.g. DISCARD, FETCH, CHECKPOINT, VACUUM.
 
 ## Rule evaluation
 When a log event arrives, all expression are evaluated at once. The log entry is output only when **all expression** in a rule section are evaluated true. For example, if we set the following rule, the audit log is output only when the `apserver` does other than write the table `myschema.hoge` during 10 am to 11 am.
