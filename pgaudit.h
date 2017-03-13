@@ -1,7 +1,7 @@
 /*
  * pgaudit.h
  *
- * Copyright (c) 2016, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Copyright (c) 2017, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  */
 
 /*
