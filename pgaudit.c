@@ -6,6 +6,7 @@
  * statements where possible (See pgaudit.sgml for details).
  *
  * Copyright (c) 2014-2015, PostgreSQL Global Development Group
+ * Copyright (c) 2017, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  *
  * IDENTIFICATION
  *          pgaudit/pgaudit.c

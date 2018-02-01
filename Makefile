@@ -1,10 +1,5 @@
-#####################################################################
 # Makefile
-#
-# Copyright (c) 2016, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
-#
-#####################################################################
-# contrib/pg_audit/Makefile# contrib/pg_audit/Makefile
+# pg_audit/Makefile
 
 MODULE_big = pgaudit
 OBJS = pgaudit.o config.o rule.o
