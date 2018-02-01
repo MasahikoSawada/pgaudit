@@ -1,7 +1,7 @@
 /*
  * pgaudit_scan.l
  *
- * Copyright (c) 2017, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Copyright (c) 2016, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
  *
  * IDENTIFICATION
  *           pgaudit/pgaudit_scan.l

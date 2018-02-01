@@ -5,7 +5,7 @@
  * object level logging, and fully-qualified object names for all DML and DDL
  * statements where possible (See pgaudit.sgml for details).
  *
- * Copyright (c) 2017, NIPPON TELEGRAPH AND TELEPHONE CORPORATION
+ * Copyright (c) 2014-2015, PostgreSQL Global Development Group
  *
  * IDENTIFICATION
  *          pgaudit/pgaudit.c
